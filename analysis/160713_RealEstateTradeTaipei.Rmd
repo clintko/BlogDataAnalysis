@@ -1,0 +1,127 @@
+---
+title: "Analysis of Real Estate Market in Taipei, 2016 "
+output: html_document
+---
+
+# set environment
+```{r, warning=FALSE, message=FALSE}
+library(tidyr)
+library(dplyr)
+
+# working directory
+workdir <- "C:\\Users\\clint\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+
+# file path
+fileAA <- file.path(workdir, "data\\2016LandAdminRealEstate\\2016A_lvr_land_A")
+```
+
+# read in data
+The data is from Dept of Land Administration M. O. I. 
+
+There are three seasons of the Real Estate Market, stored in each files.
+
+AA_S1
+
+First A represent Taipei, Second A represent "Trade"
+
+```{r}
+# season 1
+AAs1 <- read.csv(
+    file = file.path(fileAA, "AA_S1.CSV"),
+    stringsAsFactors = FALSE)
+
+# season 2
+AAs2 <- read.csv(
+    file = file.path(fileAA, "AA_S2.CSV"),
+    stringsAsFactors = FALSE)
+
+# season 3
+AAs3 <- read.csv(
+    file = file.path(fileAA, "AA_S3.CSV"),
+    stringsAsFactors = FALSE)
+
+# remove empty columns
+AAs1 <- AAs1[, c(-6, -7)]
+AAs2 <- AAs2[, c(-6, -7)]
+AAs3 <- AAs3[, c(-6, -7)]
+```
+
+
+Well, since the header is in Traditional Chinese, I'll first change them into English
+```{r}
+colName <- data.frame(
+    Name_chi = colnames(AAs1),
+    Name_eng = c(
+        "District", "TradeItem", "Location", "AreaLandTrade",
+        "Class", "DateTrade",
+        "NumBuildingTrade", "NumFloorsTrade", "NumFloorsTotal",
+        "Type", "Usage", "Material", "DateBuilt", "AreaBuildingTrade",
+        "Bedrooms", "Livingroom", "Bathroom", "Partition", "BuidlingManager",
+        "PriceTotal", "PricePerArea", "TypeParkSpace", "AreaParkSpace", 
+        "PriceParkSpace", "Note", "ID"))
+
+colName
+```
+
+change the column name
+```{r}
+colnames(AAs1) <- colName$Name_eng
+colnames(AAs2) <- colName$Name_eng
+colnames(AAs3) <- colName$Name_eng
+
+colnames(AAs1) <- paste0(colnames(AAs1), "Chi")
+colnames(AAs2) <- paste0(colnames(AAs2), "Chi")
+colnames(AAs3) <- paste0(colnames(AAs3), "Chi")
+```
+
+## District
+
+| District (English) | District (Chinese) | Area (km^2) |
+|--------------------|--------------------|-------------|
+| Shilin             | 士林區             | 62.3682     |
+| Beitou             | 北投區             | 56.8216     |
+| Neihu              | 內湖區             | 31.5787     |
+| Wenshan            | 文山區             | 31.5090     |
+| Nangang            | 南港區             | 21.8424     |
+| Zhongshan          | 中山區             | 13.6821     |
+| Da'an              | 大安區             | 11.3614     |
+| Xinyi              | 信義區             | 11.2077     |
+| Songshan           | 松山區             | 9.2878      |
+| Wanhua             | 萬華區             | 8.8522      |
+| Zhongzheng         | 中正區             | 7.6071      |
+| Datong             | 大同區             | 5.6815      |
+
+```{r}
+district <- data.frame(
+    DistrictChi = c(
+        "士林區", "北投區", "內湖區", "文山區", 
+        "南港區", "中山區", "大安區", "信義區",
+        "松山區", "萬華區", "中正區", "大同區"),
+    District = c(
+        "Shilin", "Beitou", "Neihu", "Wenshan", 
+        "Nangang", "Zhongshan", "Daan", "Xinyi", 
+        "Songshan", "Wanhua", "Zhongzheng", "Datong"))
+
+
+dat <- left_join(AAs1, district, by="DistrictChi")[,c(
+    "District", colnames(AAs1))]
+dat <- dat %>% select(-DistrictChi)
+```
+
+
+```{r}
+#AAs1 %>% select(TradeItemCHi) %>% distinct
+```
+
+
+
+```{r}
+dat <- AAs1 %>% select(District)
+
+```
+
+
+
+
+
