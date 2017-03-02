@@ -151,6 +151,11 @@ cPodDensity &lt;- read.table(file.path(
 cPodCompose &lt;- read.table(file.path(
     filePathData, &quot;copepod_composition.txt&quot;), 
     header=T)</code></pre>
+<p>observe the data by its dimension (34 stations, 181 copepod species)</p>
+<pre class="r"><code>dim(cPodDensity)</code></pre>
+<pre><code>## [1] 34  1</code></pre>
+<pre class="r"><code>dim(cPodCompose)</code></pre>
+<pre><code>## [1] 181  34</code></pre>
 </div>
 <div id="data-analysis" class="section level1">
 <h1>Data Analysis</h1>
@@ -164,7 +169,10 @@ cPodCompose &lt;- read.table(file.path(
 <div id="calculate-the-copepod-density-for-each-species-for-each-cruise-station" class="section level3">
 <h3>1. Calculate the copepod density for each species for each cruise-station</h3>
 <p>For each station, since we have density of total copepod and frequency of each copepod specie, we can calculate the density of each specie simply by multiple the density(number/m^3) with frequency(%)</p>
-<pre class="r"><code>dat   &lt;- cPodCompose / 100 # convert to frequency
+<pre class="r"><code># convert to the frequency number into percentage (ex: 20 -&gt; 20% = 0.20)
+dat   &lt;- cPodCompose / 100 
+
+# multiple total density to each row of matrix
 res01 &lt;- apply(dat, 1, function(x){x * cPodDensity[,1]})
 res01 &lt;- t(res01)</code></pre>
 <p>observe the result for question 01</p>

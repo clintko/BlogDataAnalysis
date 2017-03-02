@@ -31,6 +31,13 @@ cPodCompose <- read.table(file.path(
     header=T)
 ```
 
+observe the data by their dimension (34 stations, 181 copepod species)
+```{r}
+dim(cPodDensity)
+dim(cPodCompose)
+```
+
+
 # Data Analysis
 There are three questions, listed as below
 
@@ -43,7 +50,10 @@ below are the codes I implemented to solve the questions:
 ### 1. Calculate the copepod density for each species for each cruise-station
 For each station, since we have density of total copepod and frequency of each copepod specie, we can calculate the density of each specie simply by multiple the density(number/m^3) with frequency(%)
 ```{r}
-dat   <- cPodCompose / 100 # convert to frequency
+# convert to the frequency number into percentage (ex: 20 -> 20% = 0.20)
+dat   <- cPodCompose / 100 
+
+# multiple total density to each row of matrix
 res01 <- apply(dat, 1, function(x){x * cPodDensity[,1]})
 res01 <- t(res01)
 ```
