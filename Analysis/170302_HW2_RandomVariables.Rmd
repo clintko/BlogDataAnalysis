@@ -8,8 +8,8 @@ output: html_document
 1. Random Numbers Generation 
     - a. Generate 10000 random numbers from Gaussian distribution with mean=20 and variance =10, and plot the distribution. 
     - b. Generate 10000 random numbers from Binomial distribution with p=0.5 and n=40, and plot the distribution. 
-    - c. Compare the distribution of 1a and 1b, what do you find? (hint: you can use ?€œrand?€? and ?€œrandn?€? in matlab. Or, ?€œrunif?€? and ?€œrnorm?€? in R) 
-
+    - c. Compare the distribution of 1a and 1b, what do you find? 
+    
 2. Make a program that can select our candidates for 
 presentation next week.  This program should select 
 randomly but avoid selecting the numbers that had 
@@ -122,7 +122,7 @@ axis(side=1, lwd = 2)
 axis(side=2, lwd = 2)
 ```
 
-# 1c. Compare the distribution of 1a and 1b, what do you find? (hint: you can use ?€œrand?€? and ?€œrandn?€? in matlab. Or, ?€œrunif?€? and ?€œrnorm?€? in R)
+# 1c. Compare the distribution of 1a and 1b, what do you find?
 
 ```{r}
 N     <- c(10, 50, 100, 1000)
