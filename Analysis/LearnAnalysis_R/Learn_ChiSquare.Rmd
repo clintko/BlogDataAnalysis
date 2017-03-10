@@ -1,0 +1,132 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年3月10日"
+output: html_document
+---
+
+# set environment
+```{r}
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis\\Analysis"
+setwd(workdir)
+```
+
+# Read in the data
+The data is a contingency table containing 13 housetasks and their distribution in the couple:
+- rows are the different tasks
+- values are the frequencies of the tasks done :
+- by the wife only
+- alternatively
+- by the husband only
+- or jointly
+```{r}
+# Import the data
+file_path <- "http://www.sthda.com/sthda/RDoc/data/housetasks.txt"
+housetasks <- read.delim(file_path, row.names = 1)
+# head(housetasks)
+```
+
+# Graphical display of contengency tables
+```{r}
+library("gplots")
+
+# 1. convert the data as a table
+dt <- as.table(as.matrix(housetasks))
+
+# 2. Graph
+balloonplot(t(dt), main ="housetasks", xlab ="", ylab="",
+            label = FALSE, show.margins = FALSE)
+```
+
+
+```{r}
+head(housetasks)
+head(dt)
+```
+
+```{r}
+library("graphics")
+mosaicplot(dt, shade = TRUE, las=2,
+           main = "housetasks")
+```
+
+```{r}
+# install.packages("vcd")
+library("vcd")
+# plot just a subset of the table
+assoc(head(dt, 5), shade = TRUE, las=3)
+```
+
+```{r}
+chisq <- chisq.test(housetasks)
+chisq
+summary(chisq)
+```
+
+```{r}
+# Observed counts
+chisq$observed
+```
+
+```{r}
+# Expected counts
+round(chisq$expected,2)
+```
+
+```{r}
+round(chisq$residuals, 3)
+```
+
+```{r}
+library(corrplot)
+corrplot(chisq$residuals, is.cor = FALSE)
+```
+
+```{r}
+# Contibution in percentage (%)
+contrib <- 100*chisq$residuals^2/chisq$statistic
+round(contrib, 3)
+```
+
+```{r}
+# Visualize the contribution
+corrplot(contrib, is.cor = FALSE)
+```
+
+```{r}
+# printing the p-value
+chisq$p.value
+# printing the mean
+chisq$estimate
+```
+
+
+
+```{r}
+dat <- data.frame(
+    Wins = c(11, 6, 4),
+    Draws = c(12, 7, 7),
+    Losses = c(7, 7, 14))
+rownames(dat) <- c("Good", "Medium", "Bad")
+```
+
+```{r}
+class(housetasks)
+class(dat)
+
+chi <- chisq.test(housetasks)
+chi <- chisq.test(dat)
+
+tbl <- as.table(as.matrix(dat))
+chi <- chisq.test(tbl)
+
+chi
+chi$observed
+chi$expected
+chi$residuals
+chi$residuals^2
+
+sum(chi$residuals^2)
+chi$statistic
+```
+

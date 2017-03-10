@@ -1,0 +1,407 @@
+---
+title: "Bootstrap Analysis in Copepod and Fish Data"
+author: "Kuei Yueh Ko"
+date: "2017/3/9"
+output: html_document
+---
+
+# Set Environment
+```{r}
+library(readxl)
+
+# set work space
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(file.path(workdir, "Analysis"))
+
+# path for data
+filePathData <- file.path(
+    workdir,
+    "Data\\StatCompEcology\\Copepod")
+```
+
+# Exploratory Data Analysis (EDA)
+Read in the data:
+- copepod density (cpodDens)
+- fish density (fishDens)
+```{r}
+# read in data from excel file
+dat <- read_excel(
+    file.path(filePathData, "enviANDdensity.xls"),
+    sheet=1) 
+#head(dat)
+
+# get the density of fish and copepod
+fishDens <- dat$`FishDensity (ind./1000m3)`
+cpodDens <- dat$`CopepodDensity ind./m3)`
+#head(fishDens)
+#head(cpodDens)
+```
+
+### Scatter Plot
+Create function to perform linear regression 
+```{r}
+# Function to return the coef
+RegBeta <- function(x, y){
+    # construct Design matrix
+    X <- as.matrix(cbind(1, x)) 
+    # solve by projecting to the solution space
+    b <- solve(t(X) %*% X) %*% t(X) %*% y
+    # return the parameters
+    return(b)
+} # end func RegBeta
+#################################
+# Calculate & Store 
+# parameters of linear regression
+beta <- list()
+beta$Val <- RegBeta(x=cpodDens, y=fishDens)
+beta$b0  <- beta$Val[1]
+beta$b1  <- beta$Val[2]
+```
+
+visualize with scatter plot
+```{r}
+par(mar=c(5, 5, 3, 3))
+
+# scatterplot
+plot(cpodDens, fishDens, 
+     pch=20, 
+     xlab="Density of Copepod\n(ind./m3)",
+     ylab="Density of Fish (ind./1000m3)",
+     main="Scatter Plot of Fish & Copepod Density")
+
+# regression line
+x <- seq(-500, 9000, by=500)
+y <- beta$b0 + beta$b1 * x
+lines(x, y, col="red")
+
+# add text
+text(x=4000, y=800, 
+     cex = .8, col = "#ee6a50",
+     paste(
+         "Slope =", 
+         signif(beta$b1, 3)))
+```
+
+### Summary Statistics
+store the statistics of densities
+```{r}
+# copepod densities
+res <- list()
+res$Val    <- cpodDens
+res$Mean   <- mean(res$Val)
+res$SD     <- sd(res$Val)
+res$SE     <- res$SD/length(res$Val)^0.5
+res$Median <- median(res$Val)
+cpod <- res
+
+# fish densities
+res <- list()
+res$Val    <- fishDens
+res$Mean   <- mean(res$Val)
+res$SD     <- sd(res$Val)
+res$SE     <- res$SD/length(res$Val)^0.5
+res$Median <- median(res$Val)
+fish <- res
+########################
+cat("",
+    "Mean of Copepod Density", cpod$Mean, "\n",
+    "SE   of Copepod Density", cpod$SE,   "\n",
+    "Mean of Fish    Density", fish$Mean, "\n",
+    "SE   of Fish    Density", fish$SE)
+```
+
+**Helper Function to plot the statistics**
+```{r}
+# function to plot the deviation
+PlotArrows <- function(x1, y1, x2, y2, ...){
+    for (idx in seq_along(x1)){
+        arrows(x1[idx],y1[idx],
+               x2[idx],y2[idx],
+               ...)
+    } # end for loop
+} # end func PlotArrows
+
+# function to plot the summary statistics
+PlotStat <- function(MU, SE, ...){
+    # plot the figure
+    plot(MU, xaxt='n', 
+         xlab="", ylab="",
+         xlim=c(0,length(MU)*1.3),
+         ylim=c(min(MU)-max(SE)*1.1, 
+                max(MU)+max(SE)*1.1),
+         ...)
+    
+    # add standard error
+    PlotArrows(
+        seq_along(MU), MU-SE, 
+        seq_along(MU), MU+SE,
+        code=3,
+        length=0.1,
+        lwd=2,
+        angle=90,
+        col='red')
+
+    # add mean
+    points(seq_along(MU), MU, 
+        pch=19, cex=1.0, 
+        bg="black")
+} # end func PlotStat
+```
+
+compare the statistics of copepod and fish statistics
+```{r}
+# plot the statistics: mean and standard error
+PlotStat(
+    c(cpod$Mean, fish$Mean),
+    c(cpod$SE,   fish$SE))
+
+# add plot information
+axis(1, cex=2, at=c(1,2), labels=c("Copepod", "Fish"))
+title(
+    main="Statistics of Copepod and Fish Densities",
+    xlab="Specie",
+    ylab="Value")
+```
+
+### Histogram
+plot histogram
+```{r}
+# generate the histogram
+gp1 <- hist(cpod$Val, plot=FALSE)
+gp2 <- hist(fish$Val, plot=FALSE)
+
+# visualize both histogram in one plot
+#plot(gp1)
+#plot(gp2)
+plot(gp1, col=rgb(0,0,1,1/4), 
+     xlim=c(-10, 9000), 
+     ylim=c(  0, 20),
+     main="Distribution of\nCopepod and Fish Densities")
+plot(gp2, col=rgb(1,0,0,1/4), add=T)
+
+# add text
+text(x=6000, y=5, 
+     cex = 1.0, font = 2,
+     col = "Purple",
+     "copepod")
+text(x=1000, y=15,
+     cex = 1.0, font = 2,
+     col = "Red",
+     "fish")
+```
+
+# Create Function for Analysis
+
+Function for probability distribution
+```{r}
+myUnif <- function(n, a=0, b=1) {
+    # Continuous Uniform Distribution 
+    # Default: R.V. ~ Uniform( [0,1] )
+    #====================================
+    x <- runif(n)      # R.V. ~~~ Uniform( [0,1] )
+    y <- x * (b-a) + a # Shift to Uniform( [a,b] )
+    return(y)
+} # end func myUnif
+```
+
+Function for Bootstrap
+```{r}
+mySample <- function(x){
+    # The function is based on 
+    # return sample of x with replacement
+    #===========================================
+    # generate random numbers following uniform distribution
+    n <- length(x)
+    id <- myUnif(n, a=0, b=n)
+    # convert continuous value into discrete
+    id <- ceiling(id)
+    # remove 0 (very rare case, p(X=0) is zero for any continuous random variable)
+    id[id==0] <- 1 
+    
+    # return the result
+    return(x[id])
+} # end mySample
+
+myBootstrap <- function(avec=NULL, adat=NULL, f, N){
+    # Perform bootstrap analysis
+    #===========================================
+    # Check if the input is vector or dataframe/matrix
+    isVec <- !is.null(avec) # True if input a vector
+    isDat <- !is.null(adat) # True if input a dataframe/matrix
+    
+    # Exception handling
+    if ( isVec &  isDat) { stop("Too much input data") }
+    if (!isVec & !isDat) { stop("No input data") }
+    
+    # if the input data is a vector
+    if (isVec  & !isDat) {
+        print("The input data is a vector...")
+        # get id, the idx of vector
+        id  <- seq_len(length(avec))
+        # bootstrapping
+        print("Performing bootstrapping...")
+        val <- replicate(N, 
+            f(
+                avec[mySample(id)]
+            ) # end func
+        ) # end replicate
+    } # end if condition
+    
+    # if the input data is a dataframe/matrix
+    if (!isVec & isDat) {
+        print("The input data is a vector...")
+        # get id, the idx of rows
+        id  <- seq_len(nrow(adat))
+        # bootstrapping
+        print("Performing bootstrapping...")
+        val <- replicate(N, 
+            f(
+                adat[mySample(id),]
+            ) # end func
+        ) # end replicate
+    } # end if condition
+    
+    # summary statistics & return the result 
+    res <- list()
+    res$Val <- val
+    res$MU  <- mean(val)
+    res$SE  <- sd(val)
+    return(res)
+} # end func myBootstrap
+```
+
+helper function to visualize the bootstrap result
+```{r}
+PlotHist <- function(res, resBStrap, ...){
+    hist(resBStrap$Val,
+        col="grey90",
+        xlim=c(range(resBStrap$Val)[1] * 0.7,
+               range(resBStrap$Val)[2] * 1.3),
+        ...)
+
+    abline(v=resBStrap$MU, lwd=5, col="steelblue1")
+    abline(v=res,          lwd=2, col="red")
+} # end func PlotHist
+```
+
+# 1. Compute the mean and SE(mean) for the fish and copepod densities
+Compute the mean and SE(mean) for the fish and copepod densities (assuming all data points are independent) respectively, using both normal theory and non-parametric bootstrap. Plot the histogram of bootstrapped means with bootstrap 1000 times. (Normal theory simply means using the standard formula to estimate SE.) 
+
+perform bootstrap analysis
+```{r}
+N <- 1000 # Iterations of bootstrapping
+
+# Bootstrap of Fish Density Mean
+bStrap_FishMean <- myBootstrap(avec=fish$Val, f=mean, N=N)
+
+# Bootstrap of Copepod Density Mean
+bStrap_CpodMean <- myBootstrap(avec=cpod$Val, f=mean, N=N)
+```
+
+visualize the bootstrapped results
+```{r}
+PlotHist(fish$Mean, bStrap_FishMean)
+PlotHist(cpod$Mean, bStrap_CpodMean)
+```
+
+# 2. Compute the median and SE(median) for the fish and copepod densities
+perform bootstrap analysis
+```{r}
+N <- 1000 # Iterations of bootstrapping
+
+# Bootstrap of Fish Density Mean
+bStrap_FishMedian <- myBootstrap(avec=fish$Val, f=median, N=N)
+
+# Bootstrap of Copepod Density Mean
+bStrap_CpodMedian <- myBootstrap(avec=cpod$Val, f=median, N=N)
+```
+
+visualize the bootstrapped results
+```{r}
+PlotHist(fish$Mean, bStrap_FishMean)
+PlotHist(cpod$Mean, bStrap_CpodMean)
+```
+
+# Compare the Bootstrapped estimators and the sample estimators
+Mean
+```{r}
+PlotStat(
+    c(cpod$Mean,   bStrap_CpodMean$MU, 
+      fish$Mean,   bStrap_FishMean$MU),
+    c(cpod$SE,     bStrap_CpodMean$SE, 
+      fish$SE,     bStrap_FishMean$SE))
+
+# add labels
+title(main="Statistics of Bootstrap Mean")
+axis(1, at=c(1,2), labels=c("Copepod", "Fish"))
+```
+
+Median
+```{r}
+# plot summary statistics of bootstraped median
+PlotStat(
+    c(bStrap_CpodMedian$MU, 
+      bStrap_FishMedian$MU),
+    c(bStrap_CpodMedian$SE, 
+      bStrap_FishMedian$SE))
+
+# Add sample median
+points(x=0.5, y=cpod$Median, pch=20, col="#9932cc")
+text(  x=0.5, y=cpod$Median * 0.9,
+       cex=0.7, col="Purple",
+       "Copepod\nSample Median")
+
+points(x=1.5, y=fish$Median, pch=20, col="#cd5b45")
+text(  x=1.5, y=0,
+       cex=0.7, col="Red",
+       "Fish\nSample Median")
+
+# add labels
+title(main="Statistics of Bootstrap Median")
+axis(1, at=c(1,2), labels=c("Copepod", "Fish"))
+```
+
+# 3. Linear Regression
+encapsulate the calculation of regression coef
+```{r}
+# encapsulate the calculation of regression coef
+myFunc <- function(dat){
+    res <- RegBeta(x=dat$X, y=dat$Y)
+    return(as.vector(res))
+} # end myFunc
+
+# encapsulate the data
+dat <- data.frame(
+    X=cpod$Val,
+    Y=fish$Val)
+
+# test function
+#tmp <- myFunc(dat)
+#print(tmp)
+#print(beta)
+```
+
+```{r}
+# boostrapping
+N <- 100
+tmp <- myBootstrap(adat=dat, f=myFunc, N=N)
+
+# store the results
+res <- list()
+res$Val <- tmp$Val[1,]
+res$MU  <- mean(res$Val)
+res$SE  <- sd(res$Val)
+bStrap_Beta0 <- res
+
+res <- list()
+res$Val <- tmp$Val[2,]
+res$MU  <- mean(res$Val)
+res$SE  <- sd(res$Val)
+bStrap_Beta1 <- res
+```
+
+```{r}
+PlotHist(beta$b0, bStrap_Beta0, main="Distribution of Beta0")
+PlotHist(beta$b1, bStrap_Beta1, main="Distribution of Beta1")
+```
+
