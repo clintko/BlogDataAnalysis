@@ -123,6 +123,198 @@ $(document).ready(function () {
 </div>
 
 
+<div id="set-up-environment" class="section level1">
+<h1>Set up Environment</h1>
+<p>import required package and set working directory</p>
+<pre class="r"><code>library(readxl)</code></pre>
+<pre><code>## Warning: package 'readxl' was built under R version 3.3.2</code></pre>
+<pre class="r"><code># set work space
+workdir &lt;- &quot;C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis&quot;
+setwd(file.path(workdir, &quot;Analysis&quot;))
+
+# path for data
+filePathData &lt;- file.path(
+    workdir,
+    &quot;Data\\StatCompEcology\\Copepod&quot;)</code></pre>
+</div>
+<div id="set-up-functions" class="section level1">
+<h1>Set Up Functions</h1>
+<div id="basic-functions" class="section level3">
+<h3>Basic Functions</h3>
+<p>Function for probability distribution</p>
+<pre class="r"><code>myUnif &lt;- function(n, a=0, b=1) {
+    # Continuous Uniform Distribution 
+    # Default: R.V. ~ Uniform( [0,1] )
+    #====================================
+    x &lt;- runif(n)      # R.V. ~~~ Uniform( [0,1] )
+    y &lt;- x * (b-a) + a # Shift to Uniform( [a,b] )
+    return(y)
+} # end func myUnif</code></pre>
+<p>Function for Sampling</p>
+<pre class="r"><code>mySample &lt;- function(x){
+    # The function is based on 
+    # return sample of x with replacement
+    #===========================================
+    # generate random numbers following uniform distribution
+    n &lt;- length(x)
+    id &lt;- myUnif(n, a=0, b=n)
+    # convert continuous value into discrete
+    id &lt;- ceiling(id)
+    # remove 0 (very rare case, p(X=0) is zero 
+    # for any continuous random variable)
+    id[id==0] &lt;- 1 
+    
+    # return the result
+    return(x[id])
+} # end mySample</code></pre>
+<p>function to perform regression analysis</p>
+<pre class="r"><code>RegBeta &lt;- function(x, y){
+    # Function RegBeta return the coefficient of 
+    # linear regression
+    # x: independent variable
+    # y: dependent variable
+    ###################################
+    # construct Design matrix
+    X &lt;- as.matrix(cbind(1, x)) 
+    # solve by projecting to the solution space
+    b &lt;- solve(t(X) %*% X) %*% t(X) %*% y
+    # return the parameters
+    return(b)
+} # end func RegBeta</code></pre>
+</div>
+<div id="bootstrap" class="section level3">
+<h3>Bootstrap</h3>
+<p>Function for Bootstrapping</p>
+<pre class="r"><code>myBootstrap &lt;- function(x, f, N){UseMethod(&quot;myBootstrap&quot;)}
+
+myBootstrap.data.frame &lt;- function(x, f, N){
+    print(&quot;The input data is a data.frame...&quot;)
+    # get id, the idx of rows
+    id  &lt;- seq_len(nrow(x))
+    # bootstrapping
+    print(&quot;Performing bootstrapping...&quot;)
+    val &lt;- replicate(
+        N, f(x[mySample(id),])
+    ) # end replicate
+    
+    # summary statistics &amp; return the result 
+    print(&quot;...Finished&quot;)
+    res &lt;- list()
+    res$Val &lt;- val       # bootstrap pedvalue
+    res$MU  &lt;- mean(val) # mean of bootstrapped value
+    res$SE  &lt;- sd(val)   # standard error of mean
+    return(res)
+} # end myJackknife.data.frame
+
+myBootstrap.numeric &lt;- function(x, f, N){
+    print(&quot;The input data is a data.frame...&quot;)
+    # get id, the idx of rows
+    id  &lt;- seq_len(length(x))
+    # bootstrapping
+    print(&quot;Performing bootstrapping...&quot;)
+    val &lt;- replicate(
+        N, f(x[mySample(id)])
+    ) # end replicate
+    
+    # summary statistics &amp; return the result 
+    print(&quot;...Finished&quot;)
+    res &lt;- list()
+    res$Val &lt;- val       # bootstrapped value
+    res$MU  &lt;- mean(val) # mean of bootstrapped value
+    res$SE  &lt;- sd(val)   # standard error of mean
+    return(res)
+} # end myJackknife.numeric</code></pre>
+</div>
+<div id="jackknife" class="section level3">
+<h3>Jackknife</h3>
+<p>Function for Jackknife</p>
+<pre class="r"><code>myJackknife &lt;- function(x, f){UseMethod(&quot;myJackknife&quot;)}
+
+myJackknife.data.frame &lt;- function(x, f){
+    print(&quot;Input is data frame&quot;)
+    n  &lt;- nrow(x)
+    id &lt;- 1:n
+    matID &lt;- sapply(
+        id, function(x){id[-x]}
+    ) # end sapply
+    colnames(matID) &lt;- paste0(&quot;JK&quot;, id)
+    
+    print(&quot;Performing Jackknife...&quot;)
+    val &lt;- apply(
+        matID, 2, 
+        function(idx){
+            f(
+                x[idx,]
+            )
+        }  # end apply func
+    ) # end apply
+    
+    print(&quot;...Finish&quot;)
+    res &lt;- list()
+    res$MatID &lt;- matID     
+    res$Val   &lt;- val       # Jackknife value
+    res$MU    &lt;- mean(val) # mean of Jackknife value
+    # standard error of mean
+    res$SE    &lt;- ((n-1) / n * sum((val-mean(val))^2))^0.5
+    return(res)
+} # myJackknife.data.frame
+
+myJackknife.numeric &lt;- function(x, f){
+    print(&quot;Input is numeric vector&quot;)
+    n &lt;- length(x)
+    id &lt;- 1:n
+    matID &lt;- sapply(
+        id, function(x){id[-x]}
+    ) # end sapply
+    colnames(matID) &lt;- paste0(&quot;JK&quot;, id)
+    
+    print(&quot;Performing Jackknife...&quot;)
+    val &lt;- apply(
+        matID, 2, 
+        function(idx){
+            f(
+                x[idx]
+            )
+        }  # end apply func
+    ) # end apply
+    
+    print(&quot;...Finish&quot;)
+    res &lt;- list()
+    res$MatID &lt;- matID
+    res$Val   &lt;- val
+    res$MU    &lt;- mean(val)
+    res$SE    &lt;- ((n-1) / n * sum((val-mean(val))^2))^0.5
+    return(res)
+} # myJackknife.numeric</code></pre>
+</div>
+<div id="bc-method" class="section level2">
+<h2>BC Method</h2>
+<pre class="r"><code>createCDF &lt;- function(val){
+    # sort the value
+    val &lt;- sort(val)
+    
+    # create empirical CDF
+    cdf &lt;- function(x){
+        prop &lt;- mean(val &lt;= x)
+        return(prop)
+    } # end inner func cdf
+    
+    # create inverse of empirical CDF
+    cdfInv &lt;- function(prop){
+        idx &lt;- round(length(val) * prop)
+        x &lt;- val[idx]
+        return(x)
+    } # end inner func cdfInv
+    
+    f &lt;- list()
+    f$Cdf &lt;- cdf
+    f$CdfInv &lt;- cdfInv
+    return(f)
+}</code></pre>
+</div>
+<div id="bootstrap-correction" class="section level2">
+<h2>Bootstrap correction</h2>
+<p>Below is the formula of acceleration in BCa method</p>
 <p><span class="math">\[
 \hat{a} = 
     \frac{
@@ -134,7 +326,379 @@ $(document).ready(function () {
             \hat{\theta_{(.)}} - 
             \hat{\theta_{(i)}})^2)^{\frac{3}{2}}
     }
-\]</span></p>
+\]</span> Function to calculate Acceleration</p>
+<pre class="r"><code>getAcceleration &lt;- function(val, mu){
+    # difference of 
+    valNew = mu - val
+    
+    # numerator
+    x = valNew^3
+    x = sum(x)
+    # denominator
+    y = valNew^2
+    y = sum(y)
+    y = 6 * y^(3/2)
+    # return result
+    return(x/y)
+} # end func getAcceleration</code></pre>
+<p>Correction of Bootstrap confidence interval</p>
+<pre class="r"><code>getBStrapCI &lt;- function(
+    val, theta, alpha=0.5,
+    jKnife=NULL){
+    
+    # create empirical CDF
+    f  &lt;- createCDF(val)
+    
+    # find z0 and z[alpha/2]
+    g   &lt;-  f$Cdf(theta)
+    z0  &lt;-  qnorm(g)
+    zA2 &lt;- -qnorm(alpha/2) 
+    
+    # decide whether using BC or BCa
+    if (!is.null(jKnife)) {
+        a   &lt;- getAcceleration(jKnife$Val, jKnife$MU)
+        z2  &lt;- z0 + (z0 + zA2) / (1 - a*(z0 + zA2))
+        z1  &lt;- z0 + (z0 - zA2) / (1 - a*(z0 - zA2))
+    }else{
+        a   &lt;- NULL
+        z2  &lt;- 2 * z0 + zA2
+        z1  &lt;- 2 * z0 - zA2
+    } # end ifelse
+    
+    # calculate the confidence interval
+    CI &lt;- list()
+    CI$G       &lt;- g
+    CI$Z0      &lt;- z0
+    CI$Z2      &lt;- z2
+    CI$Z1      &lt;- z1
+    CI$ZAlpha2 &lt;- zA2
+    CI$Upper   &lt;- f$CdfInv(pnorm(z2))
+    CI$Lower   &lt;- f$CdfInv(pnorm(z1))
+    CI$Acceleration &lt;- a
+    return(CI)
+} # end func getCI</code></pre>
+</div>
+</div>
+<div id="test-on-sample-data" class="section level1">
+<h1>Test on Sample Data</h1>
+<p>input the test data</p>
+<pre class="r"><code># score of LSAT
+x &lt;- c(576, 635, 558, 578, 666, 580, 555, 661, 651, 605, 653, 575, 545, 572, 594)
+
+# score of GPA 
+y &lt;- c(3.39, 3.30, 2.81, 3.03, 3.44, 3.07, 3.00, 3.42, 3.36, 3.13, 3.12, 2.74, 2.76, 2.88, 2.96)</code></pre>
+<p>Sample Estimator</p>
+<pre class="r"><code># Recapitulate the data
+dat &lt;- data.frame(X=x,Y=y)
+
+myFunc &lt;- function(dat){
+    return(cor(dat$X,dat$Y))
+} # end myFunc </code></pre>
+<p>Perform Jackknife and Bootstrap analysis on test data</p>
+<pre class="r"><code>resJKnife &lt;- myJackknife(dat, f=myFunc)</code></pre>
+<pre><code>## [1] &quot;Input is data frame&quot;
+## [1] &quot;Performing Jackknife...&quot;
+## [1] &quot;...Finish&quot;</code></pre>
+<pre class="r"><code>resBStrap &lt;- myBootstrap(dat, f=myFunc, N=500)</code></pre>
+<pre><code>## [1] &quot;The input data is a data.frame...&quot;
+## [1] &quot;Performing bootstrapping...&quot;
+## [1] &quot;...Finished&quot;</code></pre>
+<p>result of BC/BCa method</p>
+<pre class="r"><code># Sample Correlation
+thetaHat &lt;- myFunc(dat)
+
+# BC method
+resBC &lt;- getBStrapCI(
+    val=resBStrap$Val,
+    theta=thetaHat,
+    alpha = 0.1)
+
+# BCa method
+resBCa &lt;- getBStrapCI(
+    val=resBStrap$Val,
+    theta=thetaHat,
+    alpha = 0.1,
+    jKnife=resJKnife)</code></pre>
+<p>Compare the results</p>
+<pre class="r"><code>cat(&quot;&quot;,
+    &quot;Sample Correlation (TheltaHat):\n&quot;,
+    thetaHat)</code></pre>
+<pre><code>##  Sample Correlation (TheltaHat):
+##  0.7752059</code></pre>
+<pre class="r"><code>cat(&quot;&quot;,
+    &quot;BC Method&quot;, &quot;\n&quot;,
+    &quot;  G(ThetaHat):&quot;, resBC$G,      &quot;\n&quot;,
+    &quot;  Z0:         &quot;, resBC$Z0,     &quot;\n&quot;,
+    &quot;  Z[Alpha/2]: &quot;, resBC$ZAlpha2,&quot;\n&quot;,
+    &quot;  Z2:         &quot;, resBC$Z2,     &quot;\n&quot;,
+    &quot;  Z1:         &quot;, resBC$Z1,     &quot;\n&quot;,
+    &quot;Upper Bound:  &quot;, resBC$Upper,  &quot;\n&quot;,
+    &quot;Lower Bound:  &quot;, resBC$Lower,  &quot;\n&quot;)</code></pre>
+<pre><code>##  BC Method 
+##    G(ThetaHat): 0.458 
+##    Z0:          -0.1054736 
+##    Z[Alpha/2]:  1.644854 
+##    Z2:          1.433906 
+##    Z1:          -1.855801 
+##  Upper Bound:   0.9395076 
+##  Lower Bound:   0.4854324</code></pre>
+<pre class="r"><code>cat(&quot;&quot;,
+    &quot;BCa Method\n&quot;,
+    &quot;Upper Bound:  &quot;, resBCa$Upper, &quot;\n&quot;,
+    &quot;Lower Bound:  &quot;, resBCa$Lower, &quot;\n&quot;,
+    &quot;Acceleration: &quot;, resBCa$Acceleration)</code></pre>
+<pre><code>##  BCa Method
+##  Upper Bound:   0.9265939 
+##  Lower Bound:   0.3965961 
+##  Acceleration:  -0.07645636</code></pre>
+</div>
+<div id="q1" class="section level1">
+<h1>Q1</h1>
+<p>Compute the regression coefficients for fish = beta0 + beta1 * copepod and using bootstrap method to calculate the 95% confidence limits of beta1 adn test whether beta1 is significantly different from 0 (with bootstrap 1000 times). Please calculate the CL using three methods: percentile, bc and BCa methods.</p>
+<div id="read-in-the-data" class="section level3">
+<h3>Read in the data</h3>
+<ul>
+<li>copepod density (cpodDens)<br /></li>
+<li>fish density (fishDens)</li>
+</ul>
+<pre class="r"><code># read in data from excel file
+dat &lt;- read_excel(
+    file.path(filePathData, &quot;enviANDdensity.xls&quot;),
+    sheet=1) 
+#head(dat)
+
+# get the density of fish and copepod
+fishDens &lt;- dat$`FishDensity (ind./1000m3)`
+cpodDens &lt;- dat$`CopepodDensity ind./m3)`</code></pre>
+</div>
+<div id="summary-statistics" class="section level3">
+<h3>Summary Statistics</h3>
+<p>calculate and store the statistics of densities<br />(Mean, Standard deviation, Median, and Standard Error of Mean)</p>
+<pre class="r"><code># copepod densities
+res &lt;- list()
+res$Val    &lt;- cpodDens
+res$Mean   &lt;- mean(res$Val)
+res$SD     &lt;- sd(res$Val)
+res$SE     &lt;- res$SD/length(res$Val)^0.5
+res$Median &lt;- median(res$Val)
+cpod &lt;- res
+
+# fish densities
+res &lt;- list()
+res$Val    &lt;- fishDens
+res$Mean   &lt;- mean(res$Val)
+res$SD     &lt;- sd(res$Val)
+res$SE     &lt;- res$SD/length(res$Val)^0.5
+res$Median &lt;- median(res$Val)
+fish &lt;- res
+########################
+cat(&quot;&quot;,
+    &quot;Mean of Copepod Density&quot;, cpod$Mean, &quot;\n&quot;,
+    &quot;SE   of Copepod Density&quot;, cpod$SE,   &quot;\n&quot;,
+    &quot;Mean of Fish    Density&quot;, fish$Mean, &quot;\n&quot;,
+    &quot;SE   of Fish    Density&quot;, fish$SE)</code></pre>
+<pre><code>##  Mean of Copepod Density 1972.374 
+##  SE   of Copepod Density 342.5549 
+##  Mean of Fish    Density 322.4516 
+##  SE   of Fish    Density 61.23107</code></pre>
+<p>Sample Estimator</p>
+<pre class="r"><code># Encapitulate the data
+dat &lt;- data.frame(X=cpod$Val,Y=fish$Val)
+
+# encapsulate the function
+myFunc &lt;- function(dat){
+    # the function input a data.frame, which contains two column X and Y
+    # perform the linear regression and acquire the coefficients
+    res &lt;- RegBeta(x=dat$X, y=dat$Y)
+    return(as.vector(res))
+} # end myFunc</code></pre>
+<p>Perform Jackknife analysis</p>
+<pre class="r"><code>jKnife_Beta &lt;- myJackknife(dat, f=myFunc)</code></pre>
+<pre><code>## [1] &quot;Input is data frame&quot;
+## [1] &quot;Performing Jackknife...&quot;
+## [1] &quot;...Finish&quot;</code></pre>
+<pre class="r"><code>n &lt;- nrow(dat)
+
+res &lt;- list()
+val &lt;- jKnife_Beta$Val[1,]
+res$Val   &lt;- val
+res$MU    &lt;- mean(val)
+res$SE    &lt;- ((n-1) / n * sum((val-mean(val))^2))^0.5
+jKnife_Beta0 &lt;- res
+    
+res &lt;- list()
+val &lt;- jKnife_Beta$Val[2,]
+res$Val   &lt;- val
+res$MU    &lt;- mean(val)
+res$SE    &lt;- ((n-1) / n * sum((val-mean(val))^2))^0.5
+jKnife_Beta1 &lt;- res</code></pre>
+<p>Perform Bootstrap analysis</p>
+<pre class="r"><code>bStrap_Beta &lt;- myBootstrap(dat, f=myFunc, N=100)</code></pre>
+<pre><code>## [1] &quot;The input data is a data.frame...&quot;
+## [1] &quot;Performing bootstrapping...&quot;
+## [1] &quot;...Finished&quot;</code></pre>
+<pre class="r"><code>res &lt;- list()
+val &lt;- bStrap_Beta$Val[1,]
+res$Val   &lt;- val
+res$MU    &lt;- mean(val)
+res$SE    &lt;- sd(val)
+bStrap_Beta0 &lt;- res
+    
+res &lt;- list()
+val &lt;- bStrap_Beta$Val[2,]
+res$Val   &lt;- val
+res$MU    &lt;- mean(val)
+res$SE    &lt;- sd(val)
+bStrap_Beta1 &lt;- res</code></pre>
+<p>result of BC/BCa method</p>
+<pre class="r"><code># Sample regression
+BetaHat &lt;- myFunc(dat)
+
+# BC method
+resBC_Beta0 &lt;- getBStrapCI(
+    val=bStrap_Beta0$Val,
+    theta=BetaHat[1],
+    alpha = 0.05)
+
+resBC_Beta1 &lt;- getBStrapCI(
+    val=bStrap_Beta1$Val,
+    theta=BetaHat[2],
+    alpha = 0.05)
+
+# BCa method
+resBCa_Beta0 &lt;- getBStrapCI(
+    val=bStrap_Beta0$Val,
+    theta=BetaHat[1],
+    alpha = 0.05,
+    jKnife=jKnife_Beta0)
+
+resBCa_Beta1 &lt;- getBStrapCI(
+    val=bStrap_Beta1$Val,
+    theta=BetaHat[2],
+    alpha = 0.05,
+    jKnife=jKnife_Beta1)</code></pre>
+<p>Compare the results</p>
+<pre class="r"><code>cat(&quot;&quot;,
+    &quot;Regression:\n&quot;,
+    &quot;  Beta0: &quot;, BetaHat[1], &quot;\n&quot;,
+    &quot;  Beta1: &quot;, BetaHat[2], &quot;\n&quot;)</code></pre>
+<pre><code>##  Regression:
+##    Beta0:  93.06466 
+##    Beta1:  0.1162999</code></pre>
+<pre class="r"><code>cat(&quot;&quot;,
+    &quot;BC Method&quot;, &quot;\n&quot;,
+    &quot;Upper Bound:  &quot;, resBC_Beta0$Upper,  &quot;\n&quot;,
+    &quot;Lower Bound:  &quot;, resBC_Beta0$Lower,  &quot;\n&quot;)</code></pre>
+<pre><code>##  BC Method 
+##  Upper Bound:   226.807 
+##  Lower Bound:   -14.30348</code></pre>
+<pre class="r"><code>cat(&quot;&quot;,
+    &quot;BC Method&quot;, &quot;\n&quot;,
+    &quot;Upper Bound:  &quot;, resBC_Beta1$Upper,  &quot;\n&quot;,
+    &quot;Lower Bound:  &quot;, resBC_Beta1$Lower,  &quot;\n&quot;)</code></pre>
+<pre><code>##  BC Method 
+##  Upper Bound:   0.1794722 
+##  Lower Bound:   0.06687916</code></pre>
+<pre class="r"><code>cat(&quot;&quot;,
+    &quot;BCa Method\n&quot;,
+    &quot;Upper Bound:  &quot;, resBCa_Beta0$Upper, &quot;\n&quot;,
+    &quot;Lower Bound:  &quot;, resBCa_Beta0$Lower, &quot;\n&quot;,
+    &quot;Acceleration: &quot;, resBCa_Beta0$Acceleration)</code></pre>
+<pre><code>##  BCa Method
+##  Upper Bound:   228.0895 
+##  Lower Bound:   -12.61469 
+##  Acceleration:  0.06086727</code></pre>
+<pre class="r"><code>cat(&quot;&quot;,
+    &quot;BCa Method\n&quot;,
+    &quot;Upper Bound:  &quot;, resBCa_Beta1$Upper, &quot;\n&quot;,
+    &quot;Lower Bound:  &quot;, resBCa_Beta1$Lower, &quot;\n&quot;,
+    &quot;Acceleration: &quot;, resBCa_Beta1$Acceleration)</code></pre>
+<pre><code>##  BCa Method
+##  Upper Bound:   0.1749885 
+##  Lower Bound:   0.05946465 
+##  Acceleration:  -0.1027437</code></pre>
+</div>
+</div>
+<div id="q2" class="section level1">
+<h1>Q2</h1>
+<pre class="r"><code>filePathData &lt;- file.path(
+    workdir,&quot;Data&quot;,&quot;StatCompEcology&quot;,&quot;Copepod&quot;)
+
+cPodDensity &lt;- read.table(file.path(
+    filePathData, &quot;cop_density.txt&quot;), 
+    header=T)
+
+cPodCompose &lt;- read.table(file.path(
+    filePathData, &quot;copepod_composition.txt&quot;), 
+    header=T)
+
+cpodSpecies &lt;- read.delim(file.path(
+    filePathData, &quot;copepodSPlist.txt&quot;),
+    header=F)
+
+rownames(cPodCompose) &lt;- cpodSpecies[[1]]
+head(cPodCompose)</code></pre>
+<pre><code>##                    p1 p3 p4 p6 p13  p16  p19 p21  p23  p25  s18  s19  s20
+## Acartia bifilosa    0  0  0  0   0 0.00 0.00   0 0.00 0.00 0.00 0.00 0.00
+## Acartia erythraea   0  0  0  0   0 0.00 0.00   0 0.00 0.00 0.00 0.00 0.00
+## Acartia negligence  0  0  0  0   0 0.22 2.34   0 2.51 1.62 0.00 0.00 0.00
+## Acartia omori       0  0  0  0   0 0.00 0.00   0 0.00 0.00 0.00 0.00 0.00
+## Acartia pacifica    0  0  0  0   0 0.00 0.00   0 0.00 0.00 4.07 1.56 1.08
+## Acartia sp          0  0  0  0   0 0.00 0.00   0 0.00 0.00 0.00 0.00 0.00
+##                     s22  s23  s25  s27  s29   sA   sB   sC   sD   sE   sF
+## Acartia bifilosa   0.00 0.00 0.30 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+## Acartia erythraea  0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+## Acartia negligence 0.00 0.00 0.00 1.52 0.30 3.06 1.35 1.24 0.62 2.92 0.31
+## Acartia omori      0.00 0.00 0.00 0.00 0.00 0.26 0.00 0.00 0.00 0.00 0.00
+## Acartia pacifica   4.83 8.49 1.49 0.00 0.00 0.26 0.00 0.00 0.00 0.32 1.53
+## Acartia sp         0.00 0.00 0.00 0.76 1.51 0.00 0.00 0.00 0.00 0.00 0.00
+##                     sG   w22   w23  w25  w27  w29   wA   wB   wC   wD
+## Acartia bifilosa   0.0  0.00  0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+## Acartia erythraea  0.0  0.00  0.00 0.00 0.00 0.42 0.00 0.00 0.00 0.00
+## Acartia negligence 1.4  0.00  0.00 0.00 0.00 0.00 0.00 2.22 1.13 0.93
+## Acartia omori      0.0  0.00  0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+## Acartia pacifica   0.0 19.42 51.76 2.81 3.85 6.28 0.55 0.28 0.00 0.62
+## Acartia sp         0.0  0.00  0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00</code></pre>
+<p>calculate the density of each copepod in 34 stations</p>
+<pre class="r"><code>dat &lt;- cPodCompose / 100 
+
+# multiple total density to each row of matrix
+res &lt;- apply(
+    dat, 1, 
+    function(x){x * cPodDensity[,1]})
+res &lt;- t(res)</code></pre>
+<p>extract the data of species Oncaea venusta and Canthocalanus pauper</p>
+<pre class="r"><code>dat &lt;- res[
+    c(&quot;Oncaea venusta&quot;, 
+      &quot;Canthocalanus pauper&quot;),]</code></pre>
+<p>Perform bootstrap</p>
+<pre class="r"><code># sample difference
+thetaHat &lt;- mean(dat[1,] - dat[2,])
+
+# Bootstrap
+val &lt;- 
+    sample(dat[1,], 500, replace = TRUE) -
+    sample(dat[2,], 500, replace = TRUE)
+bStrap_DiffVal &lt;- list()
+bStrap_DiffVal$Val &lt;- val
+bStrap_DiffVal$MU  &lt;- mean(val)</code></pre>
+<p>plot the distribution</p>
+<pre class="r"><code>hist(val, main=&quot;Distribution of bootstrapped mean differences&quot;)</code></pre>
+<p><img src="data:image/png;base64,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6QJ083LzS+/GN+/hF0OAwnQBunm12X+7/u4w0mIIUBCgBAlQ8BaeIAEKDiIRJEBh9tOY+q9KyUmAwtwn0vsIdDEEKEz5Vc5dYl767c/pHo55CVCY9mIi66v89AHogghQcDk7ggQouKAyQQIUBChBAhS8hSdIgIIr0hMkQMEV6QkSoOCK9AQJUHBFeoIEKLiYCEECFFzOjiABCi1dULl3yMkUtUyAQuMBaozaJUCh7bfwxqhhAhTaPohkjBomQKHtK9Ibo4YJUGj7ivTGqGECFNq+Ir0xapgAhbavSG+MGiZAoe3L2RmjhglQaPuCysaoYQIUBChBAhQEKEECFKYN0N0llTsng/76ft95TMaoYQIUJg3Q9fXhIwG6IAIUpgzQ8wH444tQAbogAhQmDNDt+/ft9ZjezgkqQBdEgMKkFxM5fO9o+53OfYIK0AURoDDp5exOn32uDwkqQBdEgMJMF1Q+JKgAXRABCnNdkX69OxYvQBdEgMJcAbq/FKgAXRABCvN8BvrP4W/CC9AFEaAw4VH4t9XFX5X78Xn12/8VoMshQGHi80C7f8DjfXdOvQBdCgEKU34T6e3qKqDvAnRJBChM+l34bYJ2X4NuX5MK0KUQoDDt1Zh6fxv+TYAuhgAF1wMlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAggAlSICCACVIgIIAJUiAwuQBul4dfbr/h41RwwQoTBugb6tL92aoMWqYAIUp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" width="672" /></p>
+<p>get CI with BC method</p>
+<pre class="r"><code>resBC &lt;- getBStrapCI(
+    bStrap_DiffVal$Val, 
+    theta=thetaHat,
+    alpha = 0.05)
+
+cat(&quot;&quot;,
+    &quot;BC Method&quot;, &quot;\n&quot;,
+    &quot;Upper Bound:  &quot;, resBC_Beta1$Upper,  &quot;\n&quot;,
+    &quot;Lower Bound:  &quot;, resBC_Beta1$Lower,  &quot;\n&quot;)</code></pre>
+<pre><code>##  BC Method 
+##  Upper Bound:   0.1794722 
+##  Lower Bound:   0.06687916</code></pre>
+</div>
 
 
 

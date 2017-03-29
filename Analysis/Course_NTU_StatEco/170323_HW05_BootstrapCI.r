@@ -1,13 +1,6 @@
----
-title: "Bootstrap Confidence Interval"
-author: "Kuei Yueh Ko"
-date: "2017/3/29"
-output: html_document
----
 
 # Set up Environment
-import required package and set working directory
-```{r}
+#import required package and set working directory
 library(readxl)
 
 # set work space
@@ -18,12 +11,11 @@ setwd(file.path(workdir, "Analysis"))
 filePathData <- file.path(
     workdir,
     "Data\\StatCompEcology\\Copepod")
-```
+
 
 # Set Up Functions
 ### Basic Functions
-Function for probability distribution
-```{r}
+#Function for probability distribution
 myUnif <- function(n, a=0, b=1) {
     # Continuous Uniform Distribution 
     # Default: R.V. ~ Uniform( [0,1] )
@@ -32,10 +24,9 @@ myUnif <- function(n, a=0, b=1) {
     y <- x * (b-a) + a # Shift to Uniform( [a,b] )
     return(y)
 } # end func myUnif
-```
 
-Function for Sampling
-```{r}
+
+#Function for Sampling
 mySample <- function(x){
     # The function is based on 
     # return sample of x with replacement
@@ -52,10 +43,9 @@ mySample <- function(x){
     # return the result
     return(x[id])
 } # end mySample
-```
 
-function to perform regression analysis
-```{r}
+
+#function to perform regression analysis
 RegBeta <- function(x, y){
     # Function RegBeta return the coefficient of 
     # linear regression
@@ -69,11 +59,9 @@ RegBeta <- function(x, y){
     # return the parameters
     return(b)
 } # end func RegBeta
-```
 
 ### Bootstrap
-Function for Bootstrapping
-```{r}
+#Function for Bootstrapping
 myBootstrap <- function(x, f, N){UseMethod("myBootstrap")}
 
 myBootstrap.data.frame <- function(x, f, N){
@@ -113,11 +101,10 @@ myBootstrap.numeric <- function(x, f, N){
     res$SE  <- sd(val)   # standard error of mean
     return(res)
 } # end myJackknife.numeric
-```
+
 
 ### Jackknife
-Function for Jackknife
-```{r}
+#Function for Jackknife
 myJackknife <- function(x, f){UseMethod("myJackknife")}
 
 myJackknife.data.frame <- function(x, f){
@@ -176,10 +163,9 @@ myJackknife.numeric <- function(x, f){
     res$SE    <- ((n-1) / n * sum((val-mean(val))^2))^0.5
     return(res)
 } # myJackknife.numeric
-```
+
 
 ## BC Method
-```{r}
 createCDF <- function(val){
     # sort the value
     val <- sort(val)
@@ -202,26 +188,10 @@ createCDF <- function(val){
     f$CdfInv <- cdfInv
     return(f)
 }
-```
+
 
 ## Bootstrap correction
-
-Below is the formula of acceleration in BCa method
-
-$$
-\hat{a} = 
-    \frac{
-        \sum(
-            \hat{\theta_{(.)}} - 
-            \hat{\theta_{(i)}})^3
-    }{
-        6(\sum(
-            \hat{\theta_{(.)}} - 
-            \hat{\theta_{(i)}})^2)^{\frac{3}{2}}
-    }
-$$
-Function to calculate Acceleration
-```{r}
+#Function to calculate Acceleration
 getAcceleration <- function(val, mu){
     # difference of 
     valNew = mu - val
@@ -236,10 +206,9 @@ getAcceleration <- function(val, mu){
     # return result
     return(x/y)
 } # end func getAcceleration
-```
 
-Correction of Bootstrap confidence interval
-```{r}
+
+#Correction of Bootstrap confidence interval
 getBStrapCI <- function(
     val, theta, alpha=0.5,
     jKnife=NULL){
@@ -275,36 +244,32 @@ getBStrapCI <- function(
     CI$Acceleration <- a
     return(CI)
 } # end func getCI
-```
+
 
 # Test on Sample Data
-input the test data
-```{r}
+#input the test data
 # score of LSAT
 x <- c(576, 635, 558, 578, 666, 580, 555, 661, 651, 605, 653, 575, 545, 572, 594)
 
 # score of GPA 
 y <- c(3.39, 3.30, 2.81, 3.03, 3.44, 3.07, 3.00, 3.42, 3.36, 3.13, 3.12, 2.74, 2.76, 2.88, 2.96)
-```
 
-Sample Estimator
-```{r}
+
+#Sample Estimator
 # Recapitulate the data
 dat <- data.frame(X=x,Y=y)
 
 myFunc <- function(dat){
     return(cor(dat$X,dat$Y))
 } # end myFunc 
-```
 
-Perform Jackknife and Bootstrap analysis on test data
-```{r}
+
+#Perform Jackknife and Bootstrap analysis on test data
 resJKnife <- myJackknife(dat, f=myFunc)
 resBStrap <- myBootstrap(dat, f=myFunc, N=500)
-```
 
-result of BC/BCa method
-```{r}
+
+#result of BC/BCa method
 # Sample Correlation
 thetaHat <- myFunc(dat)
 
@@ -320,10 +285,8 @@ resBCa <- getBStrapCI(
     theta=thetaHat,
     alpha = 0.1,
     jKnife=resJKnife)
-```
 
-Compare the results
-```{r}
+#Compare the results
 cat("",
     "Sample Correlation (TheltaHat):\n",
     thetaHat)
@@ -343,16 +306,15 @@ cat("",
     "Upper Bound:  ", resBCa$Upper, "\n",
     "Lower Bound:  ", resBCa$Lower, "\n",
     "Acceleration: ", resBCa$Acceleration)
-```
+
 
 # Q1 
-Compute the regression coefficients for fish = beta0 + beta1 * copepod and using bootstrap method to calculate the 95% confidence limits of beta1 adn test whether  beta1 is significantly different from 0 (with bootstrap 1000 times). Please calculate the CL using three methods: percentile, bc and BCa methods.
+#Compute the regression coefficients for fish = beta0 + beta1 * copepod and using bootstrap method to calculate the 95% confidence limits of beta1 adn test whether  beta1 is significantly different from 0 (with bootstrap 1000 times). Please calculate the CL using three methods: percentile, bc and BCa methods.
 
 ### Read in the data
+#- copepod density (cpodDens)  
+#- fish density (fishDens)  
 
-- copepod density (cpodDens)  
-- fish density (fishDens)  
-```{r}
 # read in data from excel file
 dat <- read_excel(
     file.path(filePathData, "enviANDdensity.xls"),
@@ -362,12 +324,12 @@ dat <- read_excel(
 # get the density of fish and copepod
 fishDens <- dat$`FishDensity (ind./1000m3)`
 cpodDens <- dat$`CopepodDensity ind./m3)`
-```
+
 
 ### Summary Statistics
-calculate and store the statistics of densities  
-(Mean, Standard deviation, Median, and Standard Error of Mean)
-```{r}
+#calculate and store the statistics of densities  
+#(Mean, Standard deviation, Median, and Standard Error of Mean)
+
 # copepod densities
 res <- list()
 res$Val    <- cpodDens
@@ -391,10 +353,9 @@ cat("",
     "SE   of Copepod Density", cpod$SE,   "\n",
     "Mean of Fish    Density", fish$Mean, "\n",
     "SE   of Fish    Density", fish$SE)
-```
 
-Sample Estimator
-```{r}
+
+#Sample Estimator
 # Encapitulate the data
 dat <- data.frame(X=cpod$Val,Y=fish$Val)
 
@@ -405,10 +366,9 @@ myFunc <- function(dat){
     res <- RegBeta(x=dat$X, y=dat$Y)
     return(as.vector(res))
 } # end myFunc
-```
 
-Perform Jackknife analysis
-```{r}
+
+#Perform Jackknife analysis
 jKnife_Beta <- myJackknife(dat, f=myFunc)
 n <- nrow(dat)
 
@@ -418,17 +378,16 @@ res$Val   <- val
 res$MU    <- mean(val)
 res$SE    <- ((n-1) / n * sum((val-mean(val))^2))^0.5
 jKnife_Beta0 <- res
-    
+
 res <- list()
 val <- jKnife_Beta$Val[2,]
 res$Val   <- val
 res$MU    <- mean(val)
 res$SE    <- ((n-1) / n * sum((val-mean(val))^2))^0.5
 jKnife_Beta1 <- res
-```
 
-Perform Bootstrap analysis
-```{r}
+
+#Perform Bootstrap analysis
 bStrap_Beta <- myBootstrap(dat, f=myFunc, N=100)
 
 res <- list()
@@ -437,17 +396,16 @@ res$Val   <- val
 res$MU    <- mean(val)
 res$SE    <- sd(val)
 bStrap_Beta0 <- res
-    
+
 res <- list()
 val <- bStrap_Beta$Val[2,]
 res$Val   <- val
 res$MU    <- mean(val)
 res$SE    <- sd(val)
 bStrap_Beta1 <- res
-```
 
-result of BC/BCa method
-```{r}
+
+#result of BC/BCa method
 # Sample regression
 BetaHat <- myFunc(dat)
 
@@ -475,10 +433,9 @@ resBCa_Beta1 <- getBStrapCI(
     alpha = 0.05,
     jKnife=jKnife_Beta1)
 
-```
 
-Compare the results
-```{r}
+
+#Compare the results
 cat("",
     "Regression:\n",
     "  Beta0: ", BetaHat[1], "\n",
@@ -505,11 +462,9 @@ cat("",
     "Upper Bound:  ", resBCa_Beta1$Upper, "\n",
     "Lower Bound:  ", resBCa_Beta1$Lower, "\n",
     "Acceleration: ", resBCa_Beta1$Acceleration)
-```
+
 
 # Q2 
-
-```{r}
 filePathData <- file.path(
     workdir,"Data","StatCompEcology","Copepod")
 
@@ -527,10 +482,9 @@ cpodSpecies <- read.delim(file.path(
 
 rownames(cPodCompose) <- cpodSpecies[[1]]
 head(cPodCompose)
-```
 
-calculate the density of each copepod in 34 stations
-```{r}
+
+#calculate the density of each copepod in 34 stations
 dat <- cPodCompose / 100 
 
 # multiple total density to each row of matrix
@@ -538,17 +492,15 @@ res <- apply(
     dat, 1, 
     function(x){x * cPodDensity[,1]})
 res <- t(res)
-```
 
-extract the data of species Oncaea venusta and Canthocalanus pauper
-```{r}
+
+#extract the data of species Oncaea venusta and Canthocalanus pauper
 dat <- res[
     c("Oncaea venusta", 
       "Canthocalanus pauper"),]
-```
 
-Perform bootstrap
-```{r}
+
+#Perform bootstrap
 # sample difference
 thetaHat <- mean(dat[1,] - dat[2,])
 
@@ -559,15 +511,12 @@ val <-
 bStrap_DiffVal <- list()
 bStrap_DiffVal$Val <- val
 bStrap_DiffVal$MU  <- mean(val)
-```
 
-plot the distribution
-```{r}
+
+#plot the distribution
 hist(val, main="Distribution of bootstrapped mean differences")
-```
 
-get CI with BC method
-```{r}
+#get CI with BC method
 resBC <- getBStrapCI(
     bStrap_DiffVal$Val, 
     theta=thetaHat,
@@ -577,6 +526,6 @@ cat("",
     "BC Method", "\n",
     "Upper Bound:  ", resBC_Beta1$Upper,  "\n",
     "Lower Bound:  ", resBC_Beta1$Lower,  "\n")
-```
+
 
 
