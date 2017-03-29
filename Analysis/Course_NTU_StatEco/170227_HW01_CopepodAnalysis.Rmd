@@ -1,0 +1,192 @@
+---
+title: "Analysis Copepod Data"
+author: "Kuei Yueh Ko"
+date: "2017/2/27"
+output: html_document
+---
+
+# Set Environment
+```{r}
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+#dir()
+```
+
+# Import Data
+We import two dataset:  
+
+1. cop_density.txt
+    + copepod total density (number/m^3) recorded in each station
+2. copepod_composition.txt
+    + frequency of each copepod specie recorded in each station.
+```{r}
+filePathData <- file.path(workdir,"Data","StatCompEcology","Copepod")
+
+cPodDensity <- read.table(file.path(
+    filePathData, "cop_density.txt"), 
+    header=T)
+
+cPodCompose <- read.table(file.path(
+    filePathData, "copepod_composition.txt"), 
+    header=T)
+```
+
+observe the data by their dimension (34 stations, 181 copepod species)
+```{r}
+dim(cPodDensity)
+dim(cPodCompose)
+```
+
+
+# Data Analysis
+There are three questions, listed as below
+
+1. Calculate the copepod density for each species for each cruise-station  
+2. For each cruise-station, calculate the species richness (number of species) and Shannon diversity index  
+3. Find dominant species (species >=2% of total composition in any cruise-station) and calculate the average density for the spring, summer, and winter cruise for each dominant species. 
+
+below are the codes I implemented to solve the questions:
+
+### 1. Calculate the copepod density for each species for each cruise-station
+For each station, since we have density of total copepod and frequency of each copepod specie, we can calculate the density of each specie simply by multiple the density(number/m^3) with frequency(%)
+```{r}
+# convert to the frequency number into percentage (ex: 20 -> 20% = 0.20)
+dat   <- cPodCompose / 100 
+
+# multiple total density to each row of matrix
+res01 <- apply(dat, 1, function(x){x * cPodDensity[,1]})
+res01 <- t(res01)
+```
+
+observe the result for question 01
+```{r}
+print(res01[1:6,1:6])
+```
+
+### 2. For each cruise-station, calculate the species richness (number of species) and Shannon diversity index
+
+Define helper function
+```{r}
+isZero <- function(x, threshold = 10^(-10)){
+    # The function returns whether the value is zero
+    # However, since we are dealing with floating number
+    # it would be saver if we set the threshold to
+    # determine whether the value is zero
+    return((-threshold < x) & (x < threshold))
+} # end func isZero
+```
+
+The Shannon's diversity index is the application of Shannon entropy in Ecology to indicate the diversity of species in an environment. Note that values that are zero should be eliminate because log(zero) return NA
+
+Define p as the frequency of a specie, we have the formula
+$$\text{Shannon Entropy} = - \sum p * ln(p) $$
+
+```{r}
+dat   <- cPodCompose / 100   # convert to frequency
+res02 <- apply(dat, 2, 
+    function(x){
+        y <- x[!isZero(x)]         # remove zero
+        s <- -crossprod(y, log(y)) # -1 * sum{ p * ln(p) }
+        return(s)
+    } # end apply func
+) # end apply
+```
+
+observe the result of all Shannon entropy for each stations (Note that there are totally 34 stations)
+```{r}
+print(res02)
+```
+
+### 3. Find dominant species (species >=2% of total composition in any cruise-station) and calculate the average density for the spring, summer, and winter cruise for each dominant species. 
+
+Helper Function
+```{r}
+plotMatrix <- function(dat, isXlab=T, isYlab=T){
+    # given a data (matrix or dataframe), plot the
+    # value of each element as color
+    # ---------------------------------
+    # Set color scale
+    colPalette.WR <- colorRampPalette(c(
+        "#fef0d9", "#fdbb84", "#fc8d59", "#e34a33"))(256)
+    
+    # Flipping the matrix
+    mat <- as.matrix(dat)
+    mat <- t(mat)
+    mat <- mat[,ncol(mat):1,drop=FALSE]
+    
+    # Plot the matrix
+    image(mat, xaxt= "n", yaxt= "n",
+          col = colPalette.WR)
+    
+    # Show ticks if needed
+    if(isXlab){ # if X ticks are added
+        axis(1, at=seq(0,1,length.out=ncol(dat)), 
+             labels=colnames(dat), las=1)
+    } # end if
+    if(isYlab){ # if Y ticks are added
+        axis(2, at=seq(0,1,length.out=nrow(dat)), 
+             labels=rev(rownames(dat)), las=2)
+    } # end if
+} # end func plotMatrix
+```
+
+create the weather factor: mapping stations to the corresponding weather
+```{r}
+weather <- 
+    ifelse(grepl("p", colnames(dat)),1,0) + 
+    ifelse(grepl("s", colnames(dat)),2,0) +
+    ifelse(grepl("w", colnames(dat)),3,0)
+weather <- factor(
+    weather, 
+    levels=1:3, 
+    labels=c("Spring", "Summer", "Winter"))
+```
+
+The main goal in question 3 is to find dominant species and calculate the average density. 
+```{r}
+dat <- cPodCompose
+```
+
+lets Visualize dominant species (>= 2%) in each station
+```{r}
+res <- dat >= 2              # find dominant species
+rownames(res) <- 1:nrow(res) # Set Species ID
+isDominant <- res            # Store the result as isDominant
+plotMatrix(isDominant)       # Visualize
+title(
+    main="Identify Dominate species",
+    xlab="Stations",
+    ylab="Species IDs")
+```
+
+To get the average density of dominant species for different weather. We will first find the dominant species
+```{r}
+# Check is any specie is dominant in any station
+res <- apply(isDominant, 1, sum) 
+res <- res[!isZero(res)]
+
+# get those specie IDs
+species <- as.numeric(names(res))
+print(species)
+```
+
+Next we will calculate the average density for each specie from the stations, for each weather:
+$$\frac{\text{sum of density of the stations}}{\text{number of stations}}$$
+```{r}
+res <- apply(res01, 1, function(x){
+    return(tapply(x,weather,mean))
+})
+res03 <- res[,species]
+colnames(res03) <- species
+```
+
+Visualize the result
+```{r}
+plotMatrix(res03)
+title(
+    main="Average Density for each dominate specie in different weather",
+    xlab="Dominate Species IDs")
+```
+
+
+

@@ -1,0 +1,255 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年3月16日"
+output: html_document
+---
+
+```{r}
+myJackknife <- function(avec, f){
+    # eliminate each element once in the original input vector
+    # combine into a matrix by column
+    mat <- sapply(seq_along(avec), function(x){
+            samples[-x]
+        } # end sapply func
+    ) # end sapply
+    colnames(mat) <- paste0("JK", seq_along(avec))
+    
+    # calculate Jackknife estimator
+    tmp <- apply(mat, 2, f)
+    
+    # Store the results
+    n <- length(avec)
+    res <- list()
+    res$JK  <- mat       # JK samples
+    res$Val <- tmp       # JK estimator
+    res$MU  <- mean(tmp) # mean of JK estimator
+    
+    # standard error
+    res$SE  <- ((n-1) / n * sum((tmp-mean(tmp))^2))^0.5 
+    return(res)
+} # end func myJackknife
+```
+
+```{r}
+samples <- c(2.50, 1.25, 7.6, 5.4, 5.6, 3.4, 9.2, 2.3, 5.5, 4.3)
+myJackknife(samples, mean)
+```
+
+```{r}
+samples <- c(2.44, 2.17, 1.71, 2.43, 1.67, 1.69, 1.68, 3.41, 2.17, 2.50)
+
+dat <- list()
+dat$Val <- samples
+dat$Mean <- mean(samples)
+dat$SD <- sd(samples)
+dat$SE <- sd(samples) / (length(samples)^0.5)
+dat$Median <- median(samples)
+```
+
+```{r}
+resJKnife_Mean <- myJackknife(samples, mean)
+resJKnife_Median <- myJackknife(samples, median)
+```
+
+```{r}
+res <- cbind(
+    resJKnife_Mean$Val,
+    resJKnife_Median$Val,
+    t(resJKnife_Mean$JK))
+print(res)
+
+```
+
+
+```{r}
+ranges <- range(res$Val)
+hist(res$Val, breaks=seq(ranges[1]*0.95, ranges[2] * 1.05, by=0.01))
+```
+
+# compare the Jackknife
+```{r}
+myUnif <- function(n, a=0, b=1) {
+    # Continuous Uniform Distribution 
+    # Default: R.V. ~ Uniform( [0,1] )
+    #====================================
+    x <- runif(n)      # R.V. ~~~ Uniform( [0,1] )
+    y <- x * (b-a) + a # Shift to Uniform( [a,b] )
+    return(y)
+} # end func myUnif
+
+mySample <- function(x){
+    # The function is based on 
+    # return sample of x with replacement
+    #===========================================
+    # generate random numbers following uniform distribution
+    n <- length(x)
+    id <- myUnif(n, a=0, b=n)
+    # convert continuous value into discrete
+    id <- ceiling(id)
+    # remove 0 (very rare case, p(X=0) is zero for any continuous random variable)
+    id[id==0] <- 1 
+    
+    # return the result
+    return(x[id])
+} # end mySample
+
+myBootstrap <- function(avec=NULL, adat=NULL, f, N){
+    # Perform bootstrap analysis
+    #===========================================
+    # Check if the input is vector or dataframe/matrix
+    isVec <- !is.null(avec) # True if input a vector
+    isDat <- !is.null(adat) # True if input a dataframe/matrix
+    
+    # Exception handling
+    if ( isVec &  isDat) { stop("Too much input data") }
+    if (!isVec & !isDat) { stop("No input data") }
+    
+    # if the input data is a vector
+    if (isVec  & !isDat) {
+        print("The input data is a vector...")
+        # get id, the idx of vector
+        id  <- seq_len(length(avec))
+        # bootstrapping
+        print("Performing bootstrapping...")
+        val <- replicate(N, 
+            f(
+                avec[mySample(id)]
+            ) # end func
+        ) # end replicate
+    } # end if condition
+    
+    # if the input data is a dataframe/matrix
+    if (!isVec & isDat) {
+        print("The input data is a dataframe/matrix...")
+        # get id, the idx of rows
+        id  <- seq_len(nrow(adat))
+        # bootstrapping
+        print("Performing bootstrapping...")
+        val <- replicate(N, 
+            f(
+                adat[mySample(id),]
+            ) # end func
+        ) # end replicate
+    } # end if condition
+    
+    # summary statistics & return the result 
+    print("...Finished")
+    res <- list()
+    res$Val <- val       # bootstrap pedvalue
+    res$MU  <- mean(val) # mean of bootstrapped value
+    res$SE  <- sd(val)   # standard error of mean
+    return(res)
+} # end func myBootstrap
+
+PlotHist <- function(res, resBStrap, ...){
+    # res: a number
+    # resBStrap: a list
+    ##############################
+    hist(resBStrap$Val,
+        col="grey90",
+        xlim=c(range(resBStrap$Val)[1] * 0.7,
+               range(resBStrap$Val)[2] * 1.3),
+        ...)
+    # add verticle lines
+    abline(v=resBStrap$MU, lwd=5, col="steelblue1")
+    abline(v=res,          lwd=2, col="red")
+} # end func PlotHist
+
+# function to plot the deviation
+PlotArrows <- function(x1, y1, x2, y2, ...){
+    for (idx in seq_along(x1)){
+        arrows(x1[idx],y1[idx],
+               x2[idx],y2[idx],
+               ...)
+    } # end for loop
+} # end func PlotArrows
+
+# function to plot the summary statistics
+PlotStat <- function(MU, SE, ...){
+    # plot the figure
+    plot(MU, xaxt='n', 
+         xlab="", ylab="",
+         xlim=c(0,length(MU)*1.3),
+         ylim=c(min(MU)-max(SE)*1.1, 
+                max(MU)+max(SE)*1.1),
+         ...)
+    
+    # add standard error
+    PlotArrows(
+        seq_along(MU), MU-SE, 
+        seq_along(MU), MU+SE,
+        code=3,
+        length=0.1,
+        lwd=2,
+        angle=90,
+        col='red')
+
+    # add mean
+    points(seq_along(MU), MU, 
+        pch=19, cex=1.0, 
+        bg="black")
+} # end func PlotStat
+```
+
+```{r}
+N <- 100
+resBStrap_Mean <- myBootstrap(avec=samples, f=mean, N=N)
+resBStrap_Median <- myBootstrap(avec=samples, f=median, N=N)
+
+PlotHist(dat$Mean,   resBStrap_Mean)
+PlotHist(dat$Median, resBStrap_Median)
+```
+
+# Compare the result of Boostrap and Jackknife
+```{r}
+resJKnife_Mean   <- myJackknife(samples, mean)
+resJKnife_Median <- myJackknife(samples, median)
+
+N <- 1000
+resBStrap_Mean   <- myBootstrap(avec=samples, f=mean, N=N)
+resBStrap_Median <- myBootstrap(avec=samples, f=median, N=N)
+```
+
+
+```{r}
+res <- data.frame(
+    Analytic = c(dat$Mean, dat$Median, dat$SE, NA),
+    Jackknife = c(
+        resJKnife_Mean$MU, resJKnife_Median$MU, 
+        resJKnife_Mean$SE, resJKnife_Median$SE),
+    Bootstrap = c(
+        resBStrap_Mean$MU, resBStrap_Median$MU, 
+        resBStrap_Mean$SE, resBStrap_Median$SE))
+rownames(res) <- c("Mean", "Median", "SE(mean)", "SE(median)")
+
+# show the result
+print(res)
+```
+
+
+
+
+```{r}
+PlotStat(
+    c(dat$Mean, resJKnife_Mean$MU, resBStrap_Mean$Mean),
+    c(dat$SE,   resJKnife_Mean$SE, resBStrap_Mean$SE))
+
+# add plot information
+axis(1, cex=2, at=c(1,2,3), labels=c("Analytic", "Jackknife", "Bootstrap"))
+#title(
+#    main="Statistics of Copepod and Fish Densities",
+#    xlab="Specie",
+#    ylab="Value")
+```
+
+# Permutation
+```{r}
+
+```
+
+
+
+
+
+

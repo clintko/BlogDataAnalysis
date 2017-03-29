@@ -1,0 +1,7 @@
+---
+title: "Lec170323_Bootstrap"
+author: "Kuei Yueh Ko"
+date: "2017年3月23日"
+output: html_document
+---
+

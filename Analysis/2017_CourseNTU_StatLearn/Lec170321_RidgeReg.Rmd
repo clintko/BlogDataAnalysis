@@ -1,0 +1,212 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017/3/21—¥"
+output: html_document
+---
+
+# Set Environment
+```{r, warning=FALSE}
+#install.packages("glmnet")
+library(glmnet)
+
+# set working directory
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+#dir()
+
+filePathData <- file.path(
+    workdir,
+    "Data",
+    "2017_CourseNTU_StatLearn")
+```
+
+# read in data
+advertising data
+
+- TV
+- Radio
+- Newspaper
+- Sales
+
+```{r}
+adv = read.csv(file.path(filePathData, "Advertising.csv"))
+head(adv)
+```
+
+distribution of each data
+```{r}
+#par(mar=c(5.1,4.1,4.1,2.1))
+par(mar=c(5.1,6,4.1,2.1))
+boxplot(
+    adv,
+    #log(adv), 
+    horizontal=TRUE, las=1,
+    col=c("red", "orange", "blue", "purple"))
+
+title(main="Boxplot of Advertisement")
+```
+
+# Ridge Regression Example
+import glmnet package
+```{r}
+library(glmnet)
+```
+
+create x-matrix, excluding constant column
+```{r}
+xmat = model.matrix(Sales~., data=adv)
+head(xmat)
+```
+
+Note that the 
+```{r}
+xmat = model.matrix(Sales~., data=adv)[,-1]
+head(xmat)
+```
+
+fit model
+```{r}
+glmmod  <- glmnet(xmat, adv$Sales, alpha=0, family="gaussian")
+glmmod2 <- glmnet(xmat, adv$Sales, alpha=1, family="gaussian", nlambda = 30)
+```
+
+
+```{r}
+lbs_fun <- function(fit, ...){
+    L <- length(fit$lambda)
+    x <- log(fit$lambda[L])
+    y <- fit$beta[,L]
+    labs <- names(y)
+    text(x+1, y+0.001, labels=labs, cex=1.5, ...)
+} # end func lbs_fun
+```
+
+plot the result 01
+```{r}
+plot(
+    glmmod, xvar="lambda",
+    label=FALSE, lwd=2)
+lbs_fun(glmmod)
+```
+
+plot the result 02
+```{r}
+plot(
+    glmmod2, xvar="lambda",
+    label=FALSE, lwd=2)
+lbs_fun(glmmod2)
+```
+
+# Dummy Coding
+read in data
+```{r}
+load(file.path(filePathData, "rtb1_train.rdata"))
+head(rtb1_train)
+```
+
+
+```{r}
+log_count = sort(
+    log(table(rtb1_train$ip)), 
+    decreasing=TRUE)
+
+log_rank = log(1:length(log_count))
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(exp(log_rank), as.vector(exp(log_count)), 
+     type="l", lwd=2)
+
+plot(log_rank, as.vector(log_count), 
+     type="l", lwd=2)
+```
+
+
+```{r}
+reg_tvalue <- function(y, x) {
+    y = matrix(y, ncol=1)
+    xmat = matrix(1, ncol=2, nrow=length(y))
+    xmat[,2] = x
+    bhead  = solve(t(xmat) %*% xmat, t(xmat) %*% y)
+    yhead  = xmat %*% bhead
+    e1     = y - yhead
+    var1   = sum(e1 * e1) / (length(e1)-2)
+    sigma2 = solve(t(xmat) %*% xmat) * var1
+    t1     = bhead[2] / sqrt(sigma2[2,2])
+    return(t1)
+} # end func reg_tvalue
+```
+
+
+```{r}
+ipc = sort(
+    log(table(rtb1_train$ip)), 
+    decreasing=TRUE)
+
+threshold = 5
+ind1 = ipc >= threshold
+ipc  = ipc[ind1]
+
+nfeat = length(ipc)
+featname = names(ipc)
+allt = rep(NA, nfeat)
+names(allt) = featname
+y = rtb1_train$paying_price
+
+for (aid in 1:nfeat) {
+    afeat = featname[aid]
+    x = as.numeric(rtb1_train$ip == afeat)
+    allt[aid] = reg_tvalue(y,x)
+} # end for loop
+```
+
+```{r}
+# Sort by abs(t-value)
+o1 = order(abs(allt), decreasing = TRUE)
+allt2 = allt[o1]
+t_thres = 0.9
+
+# Filter via abs(t-value)
+ind2 = abs(allt2) > t_thres
+allt3 = allt2[ind2]
+```
+
+```{r}
+rtb2 = data.frame(paying_price=rtb1_train$paying_price)
+nextcol = ncol(rtb2) + 1
+allt3names = names(allt3)
+origfeature = rtb1_train$ipinyou_id
+newfeatname = allt3names
+
+for (afeature in 1:nfeat) {
+    thisfeat = allt3names[afeature]
+    rtb2[[nextcol]] = as.numeric(origfeature == thisfeat)
+    aname = paste("ip", afeature, sep="_")
+    names(rtb2)[nextcol] = aname
+    nextcol = nextcol+1
+}
+```
+
+```{r}
+theseq = seq.int(1, length(newfeatname), 50)
+if (theseq[length(theseq)] != length(newfeatname)) {
+    theseq=c(theseq, length(newfeatname))
+}
+
+adjrmat = matrix(NA, ncol=2, nrow=length(theseq))
+for(aid in seq(theseq)) {
+    nf = theseq[aid]
+    strfeat = paste(newfeatname[1:nf], collapse = "+")
+    model1 = as.formula(paste("paying_price~", strfeat, sep=""))
+    lm2 = lm(model1, data=rtb2)
+    lm2s = summary(lm2)
+    adjrmat[aid,] = c(nf, lm2s$adj.r)
+    cat("Now: ", c(nf, lm2s$adj.r), "\n")
+    flush.console()
+}
+```
+
