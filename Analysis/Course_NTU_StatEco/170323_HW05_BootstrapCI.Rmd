@@ -538,6 +538,7 @@ res <- apply(
     dat, 1, 
     function(x){x * cPodDensity[,1]})
 res <- t(res)
+head(res)
 ```
 
 extract the data of species Oncaea venusta and Canthocalanus pauper
@@ -547,15 +548,16 @@ dat <- res[
       "Canthocalanus pauper"),]
 ```
 
-Perform bootstrap
+### independent test
+Perform bootstrap for independent test
 ```{r}
 # sample difference
 thetaHat <- mean(dat[1,] - dat[2,])
 
 # Bootstrap
 val <- 
-    sample(dat[1,], 500, replace = TRUE) -
-    sample(dat[2,], 500, replace = TRUE)
+    sample(dat[1,], 1000, replace = TRUE) -
+    sample(dat[2,], 1000, replace = TRUE)
 bStrap_DiffVal <- list()
 bStrap_DiffVal$Val <- val
 bStrap_DiffVal$MU  <- mean(val)
@@ -575,8 +577,40 @@ resBC <- getBStrapCI(
 
 cat("",
     "BC Method", "\n",
-    "Upper Bound:  ", resBC_Beta1$Upper,  "\n",
-    "Lower Bound:  ", resBC_Beta1$Lower,  "\n")
+    "Upper Bound:  ", resBC$Upper,  "\n",
+    "Lower Bound:  ", resBC$Lower,  "\n")
 ```
 
+### paired test
+Perform bootstrap for paired test
+```{r}
+# sample difference
+thetaHat <- mean(dat[1,] - dat[2,])
+
+# Bootstrap
+idx <- sample(seq_len(length(dat[1,])), 1000, replace = TRUE)
+val <- dat[1,idx] - dat[2,idx]
+    
+bStrap_DiffVal <- list()
+bStrap_DiffVal$Val <- val
+bStrap_DiffVal$MU  <- mean(val)
+```
+
+plot the distribution
+```{r}
+hist(val, main="Distribution of bootstrapped mean differences")
+```
+
+get CI with BC method
+```{r}
+resBC <- getBStrapCI(
+    bStrap_DiffVal$Val, 
+    theta=thetaHat,
+    alpha = 0.05)
+
+cat("",
+    "BC Method", "\n",
+    "Upper Bound:  ", resBC$Upper,  "\n",
+    "Lower Bound:  ", resBC$Lower,  "\n")
+```
 

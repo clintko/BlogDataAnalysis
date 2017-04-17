@@ -1,0 +1,141 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年4月6日"
+output: html_document
+---
+
+# Set up Environment
+import required package and set working directory
+```{r}
+library(readxl)
+
+# set work space
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(file.path(workdir, "Analysis"))
+
+# path for data
+filePathData <- file.path(
+    workdir,
+    "Data\\StatCompEcology\\Copepod")
+```
+
+function to perform regression analysis
+```{r}
+RegBeta <- function(x, y){
+    # Function RegBeta return the coefficient of 
+    # linear regression
+    # x: independent variable
+    # y: dependent variable
+    ###################################
+    # construct Design matrix
+    X <- as.matrix(cbind(1, x)) 
+    # solve by projecting to the solution space
+    b <- solve(t(X) %*% X) %*% t(X) %*% y
+    # return the parameters
+    return(b)
+} # end func RegBeta
+```
+
+# Read in the data
+
+- copepod density (cpodDens)  
+- fish density (fishDens)  
+```{r}
+# read in data from excel file
+dat <- read_excel(
+    file.path(filePathData, "enviANDdensity.xls"),
+    sheet=1) 
+#head(dat)
+
+# get the density of fish and copepod
+fishDens <- dat$`FishDensity (ind./1000m3)`
+cpodDens <- dat$`CopepodDensity ind./m3)`
+```
+
+# Randomization
+```{r}
+beta <- RegBeta()
+```
+
+
+# Q2 Comparing mean difference
+```{r}
+filePathData <- file.path(
+    workdir,"Data","StatCompEcology","Copepod")
+
+cPodDensity <- read.table(file.path(
+    filePathData, "cop_density.txt"), 
+    header=T)
+
+cPodCompose <- read.table(file.path(
+    filePathData, "copepod_composition.txt"), 
+    header=T)
+
+cpodSpecies <- read.delim(file.path(
+    filePathData, "copepodSPlist.txt"),
+    header=F)
+
+rownames(cPodCompose) <- cpodSpecies[[1]]
+head(cPodCompose)
+```
+
+calculate the density of each copepod in 34 stations
+```{r}
+dat <- cPodCompose / 100 
+
+# multiple total density to each row of matrix
+res <- apply(
+    dat, 1, 
+    function(x){x * cPodDensity[,1]})
+res <- t(res)
+head(res)
+```
+
+extract the data of species Oncaea venusta and Canthocalanus pauper
+```{r}
+dat <- res[
+    c("Oncaea venusta", 
+      "Canthocalanus pauper"),]
+val <- c(dat[1,], dat[2,])
+```
+
+```{r}
+myFun <- function(val){
+    lenMid <- length(val)/2
+    lenAll <- length(val)
+    x <- val[seq(     1, lenMid, by=1)]
+    y <- val[seq(lenMid, lenAll, by=1)]
+    res <- mean(x) - mean(y)
+    return(res)
+}
+```
+
+
+```{r}
+?replicate
+
+replicate(val, n = 10)
+```
+
+```{r}
+resSample  <- myFun(val)
+resPermute <- replicate(1000, myFun(val[order(runif(length(val)))]))
+resPermute <- replicate(100000, myFun(val[order(runif(length(val)))]))
+```
+
+```{r}
+hist(resPermute, 
+     breaks = seq(
+         min(resPermute)-1,
+         max(resPermute)+1, 
+         by=0.1))
+abline(v=resSample, col="red")
+```
+
+```{r}
+mean(resPermute > resSample)
+mean(resPermute < -resSample)
+```
+
+

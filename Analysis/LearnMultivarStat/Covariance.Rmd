@@ -1,0 +1,64 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年4月17日"
+output: html_document
+---
+
+```{r}
+getMU <- function(dat){
+    vec <- apply(dat, 2, mean)
+    return(vec)
+}
+```
+
+```{r}
+getSigma1 <- function(dat){
+    return(cov(dat))
+}
+```
+
+```{r}
+getSigma2 <- function(dat){
+    n <- nrow(dat) # number of samples
+    p <- ncol(dat) # number of variables
+    mat <- as.matrix(dat)
+    
+    #
+    mu <- apply(mat, 2, mean)
+    res <- matrix(0, p, p)
+    
+    #
+    for (idx in 1:n){
+        res <- res + outer(mat[idx,]-mu, mat[idx,]-mu)    
+    }
+    
+    res <- 1/(n-1) * res
+    return(res)
+}
+```
+
+```{r}
+getSigma3 <- function(dat){
+    n <- nrow(dat) # number of samples
+    p <- ncol(dat) # number of variables
+    mat <- as.matrix(dat)
+    H <- diag(n) - 1/n * outer(rep(1,n), rep(1,n))
+    res <- 1/(n-1) * t(mat) %*% H %*% mat
+    return(res)
+}
+```
+
+```{r}
+getSigma1(dat)
+getSigma2(dat)
+getSigma3(dat)
+```
+
+```{r}
+N <- 1000
+system.time(replicate(N, getSigma1(dat)))
+system.time(replicate(N, getSigma2(dat)))
+system.time(replicate(N, getSigma3(dat)))
+```
+

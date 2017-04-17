@@ -1,0 +1,10 @@
+---
+title: "170416 Lec02 Clustering"
+author: "Kuei Yueh Ko"
+date: "2017年4月16日"
+output: html_document
+---
+
+# Nonhierarchical clustering
+# Hirarchical clustering
+

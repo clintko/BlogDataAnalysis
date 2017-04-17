@@ -1,0 +1,202 @@
+---
+title: '170416 Lec01 Similarity & Dissimilarity'
+author: "Kuei Yueh Ko"
+date: "2017年4月16日"
+output: html_document
+---
+
+# Similarity and Dissimilarity
+- Definition of Similarity
+    - an index that indicate how similar two objects are
+
+- Definition of Dissimilarity
+    - an index that indicate how similar two objects are
+    - Often: Dissimilarity = 1 - Similarity
+    - In practice, dissimilarity is often characterized by distance; however, some distance measures are unbounded on the upper end, thus conversion is required
+    
+- from wiki, we can know the definition and explanation of distance
+    - In mathematics, a **metric** or **distance** function is a function that defines a distance between each pair of elements of a set. 
+    - Definition:
+        - d : X $\times$ X -> [0, $\inf$)
+    - To be defined as a distance, the function follows that
+        1. d(x, y) $\geq$ 0
+        2. d(x, y) = 0 iff x = y
+        3. d(x, y) = d(y, x)
+        4. d(x, y) $\leq$ d(x, z) + d(z, y)
+        
+Here the professor introduce several distance calculation method
+- Euclidean Distance
+- City-block (Manhattan) Distance
+- Proportional Distance Coefficients
+    - Sorensen Distance (Bray-Curtis Distance)
+    - Jaccard Distance
+    - Kulczynski Distance
+
+Since the input X can be a set or tuple. I will try to calculate with these two mathematical structures
+
+# Data
+```{r}
+dat <- data.frame(
+    A=c(1,1,1,10,10,10),
+    B=c(9,8,6,0,2,0),
+    C=c(12,11,10,9,8,7),
+    D=c(1,1,10,10,10,2))
+```
+
+
+# Euclidean distance
+Euclidean distance is probabily the most intuitive distance in our daily life. the equation is (suppose x, y here are n-tuple)
+
+$$ED(x, y) = \sqrt{\sum_{i=1}^N (x_i - y_i)^2 }$$
+
+we can rewrite the equation in the matrix form
+$$ED(x, y)^2 = (x-y)^T(x-y)$$
+
+```{r}
+distEU <- function(x, y){
+    x <- as.numeric(x)
+    y <- as.numeric(y)
+    res <- crossprod(x-y)^0.5
+    return(res)
+}
+```
+
+```{r}
+distEU(dat[1,], dat[2,])
+```
+
+### My Note: Covariance and correlation
+Distance correlation is a metric based on measuring the dependence/independence of two random vectors/variables.
+
+The formula can be written as follow:
+$$cor(x,y) 
+= \frac{cov(x,y)}{\sqrt{var(x)}\sqrt{var(y)}} 
+= \frac{E[(x-\mu_x)(y-\mu_y)]}{E[(x-\mu_x)^2]E[(y-\mu_y)^2]}
+= \frac{
+        \frac{1}{n} \sum_{i=1}^n (x_i-\mu_x)(y_i-\mu_y)
+    }{
+        \frac{1}{n} \sum_{i=1}^n (x_i-\mu_x)^2                 
+        \frac{1}{n} \sum_{i=1}^n (y_i-\mu_y)^2}
+= \frac{
+        \frac{1}{n} \sum_{i=1}^nx_iy_i - \mu_x\mu_y
+    }{
+        \frac{1}{n} (\sum_{i=1}^nx_i^2 - \mu_x^2)
+        \frac{1}{n} (\sum_{i=1}^nx_i^2 - \mu_x^2)}$$
+
+We can rewrite it in matrix form. Since we know that 
+
+$\sum_{i=1}^nx_iy_i = x^Ty$
+
+$\sum_{i=1}^ny_i^2 = x^Tx$
+
+$\sum_{i=1}^ny_i^2 = y^Ty$
+
+$\mu_x = \frac{1}{n} \mathbf{1}^T x = \frac{1}{n} x^T \mathbf{1}$
+
+$\mu_y = \frac{1}{n} \mathbf{1}^T y = \frac{1}{n} y^T \mathbf{1}$
+
+Therefore, we can rewrite the formula as follow:
+
+$$cor(x,y) 
+= \frac{
+    \frac{1}{n} x^Ty-(\frac{1}{n} x^T \mathbf{1})(\frac{1}{n}\mathbf{1}^T y)
+}{
+    \frac{1}{n} (x^Tx - (\frac{1}{n} x^T \mathbf{1})
+                        (\frac{1}{n} \mathbf{1}^T x))
+    \frac{1}{n} (y^Ty - (\frac{1}{n} y^T \mathbf{1})
+                        (\frac{1}{n} \mathbf{1}^T y)))
+}
+= \frac{
+    \frac{1}{n} x^T H y
+}{
+    \frac{1}{n} (x^T H x) \frac{1}{n} (y^T H y)
+}
+$$
+
+where H is a idempotent and symmetric matrix (projection matrix)
+
+$$H = I - \frac{1}{n} J$$
+
+where J is a square matrix with all 1
+
+$$J = \mathbf{1} \mathbf{1}^T$$
+
+# City-block (Manhattan) Distance
+```{r}
+distCB <- function(x, y){
+    x <- as.numeric(x)
+    y <- as.numeric(y)
+    res <- sum(abs(x-y))
+    return(res)
+}
+```
+
+```{r}
+distCB(dat[1,], dat[2,])
+```
+
+
+
+# Sorensen Distance or Bray-Curtis Distance
+
+$$1 - \frac{2w}{A+B}$$
+
+$$PD = (100) * \frac{\sum_{i=1}^n |x_i - y_i|}{\sum_{i=1}^n (x_i + y_i)}$$
+
+$$PD = (100) * [1 - \frac{2 \sum_{i=1}^n min(x_i - y_i)}{\sum_{i=1}^n (x_i + y_i)}]$$
+
+# Jaccard Distance
+
+$$1-\frac{1}{2}(\frac{w}{A+B-w})$$
+
+$$JD = (100) * [
+1 - \frac{
+    \sum_{i=1}^n min(x_i, y_i)
+}{
+    \sum_{i=1}^nx_i + \sum_{i=1}^ny_i - \sum_{i=1}^n|x_i - y_i|)}
+]$$
+
+# Kulczynski Distance
+
+$$1-\frac{1}{2}(\frac{w}{A} + \frac{w}{B})$$
+
+$$JD = (100) * [
+1 - \frac{1}{2} [ 
+\frac{
+    \sum_{i=1}^n min(x_i, y_i)
+}{
+    \sum_{i=1}^nx_i}
++
+\frac{
+    \sum_{i=1}^n min(x_i, y_i)
+}{
+    \sum_{i=1}^ny_i}
+]]$$
+
+# Euclidean Distance Based on Species Profiles
+
+$$\text{Chord_{ij}} = \sqrt{
+    \sum_{i=1}^n [
+        \frac{x_i}{\sum_{i=1}^n x_i^2} - 
+        \frac{y_i}{\sum_{i=1}^n y_i^2}
+    ]^2
+}$$
+
+# Association Coefficients
+
+| Association Table |         | Sample j | Sample j |       |
+|:-----------------:|:-------:|:--------:|:--------:|:-----:|
+|                   |         |  Present |  Absent  | Total |
+|      Sample k     | Present |     a    |     b    |  a+b  |
+|      Sample k     |  Absent |     c    |     d    |  c+d  |
+|                   |  Total  |    a+c   |    b+d   |   p   |
+
+simple Matching Coefficient
+$$CSMC_{JK} = IA - \frac{a + d}{p}$$
+
+Coefficient of Jaccard
+$$CCJ_{JK} = IA - \frac{a}{a+b+c}$$
+
+Coefficient of Community
+$$CCC_{JK} = IA - \frac{2a}{2a+b+c}$$
+
