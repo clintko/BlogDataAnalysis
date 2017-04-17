@@ -57,7 +57,36 @@ dat <- traindata[[1]][1:500,]
 head(dat)
 apply(dat,2, mean)
 cov(dat)
+```
 
+```{r}
+myKernal <- function(x, lstModel){
+    p <- length(x)
+    x <- matrix(x, ncol=1)
+    
+    mu          <- matrix(lstModel$mu1, ncol=1)
+    sigmaInv    <- lstModel$prec1
+    sigmaDetlog <- lstModel$detsig_log
+    
+    valKernal <- -0.5 * t(x - mu) %*% sigmaInv %*% (x - mu)
+    res <- (-p/2) * sigmaDetlog + valKernal
+    return(res)
+}
+```
 
+```{r}
+pgm_predict <- function(lstOfModel, x){
+    res <- lapply(lstOfModel, function(lstModel){
+        return(myKernal(x, lstModel))
+    })
+    which()
+    
+    return(res)
+}
+```
+
+```{r}
+load('phonetrain.rdata') 
+load('phonetest1.rdata') 
 ```
 
