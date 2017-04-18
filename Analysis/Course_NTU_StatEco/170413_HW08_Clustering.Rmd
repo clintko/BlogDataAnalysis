@@ -1,0 +1,594 @@
+---
+title: "HW08 Clustering"
+author: "Kuei Yueh Ko"
+date: "2017/4/18"
+output: html_document
+---
+
+# Set Environment
+import necessary library 
+```{r, warning=FALSE}
+#library(dyplyr)
+#library(tidyr)
+#library(ggplot2)
+library(vegan)
+library(cluster)
+library(fpc)
+library(proxy)
+```
+
+setting directories
+```{r}
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+
+filePathData <- file.path(
+    workdir,
+    "Data/StatCompEcology/Copepod")
+```
+
+import data
+```{r}
+# intialize a list to store data
+datCPOD <- list()
+
+# read tables
+dat <- read.table(file.path(
+    filePathData, "cop_density.txt"), 
+    header=T)
+datCPOD$Density <- dat
+
+dat <- read.table(file.path(
+    filePathData, "copepod_composition.txt"), 
+    header=T)
+datCPOD$Compose <- dat
+
+dat <- read.table(file.path(
+    filePathData, "copepodSPlist.txt"),
+    sep="\t", header=F)
+datCPOD$SP_Total <- as.character(dat$V1)
+
+# Search for dominant species
+dat <- datCPOD$Compose
+temp <- apply(dat >= 2, 1, sum) 
+datCPOD$SP_Dominant <- which(temp > 0)
+
+# Extract the composition of dominant species
+dat <- datCPOD$Compose
+idx <- datCPOD$SP_Dominant 
+idn <- datCPOD$SP_Total
+dat <- dat[idx,]
+rownames(dat) <- idn[idx]
+
+# composition of dominant species
+# Note: transform the matrix since 
+# we are clustering on stations
+datCPOD$CompDmt <- t(dat)
+datCPOD$CompDmtScale <- scale(t(dat)) # scales the columns of a numeric matrix
+#head(datCPOD$CompDmtScale)
+```
+
+The goal is to perform cluster analysis of **stations** based on percent composition data of the dominant. Below is the boxplot summarize the dataset.
+```{r}
+# set plot 
+par(mfrow=c(1,1))
+par(mar = c(13,5,5,5))
+
+#
+dat <- datCPOD$CompDmt
+boxplot(dat, 
+        xaxt= "n",
+        #xlab="Species",
+        ylab="Percentage (%)",
+        main="Composition Before Scaled")
+axis(1, at=seq_len(ncol(dat)), 
+     labels=colnames(dat), 
+     las=2, cex.axis=0.7)
+
+dat <- datCPOD$CompDmtScale
+boxplot(dat, 
+        xaxt= "n",
+        #xlab="Species",
+        ylab="Percentage (%)",
+        main="Composition After Scaled")
+axis(1, at=seq_len(ncol(dat)), 
+     labels=colnames(dat), 
+     las=2, cex.axis=0.7)
+
+# reset plot
+par(mfrow=c(1,1))
+par(mar = c(6,5,2,6))
+```
+
+
+here I test data
+```{r}
+dat = read.table(
+    file.path(
+        filePathData,
+        'enviANDdensity.txt'),
+    header=T)
+
+# Stored the raw table in a list
+envdata = list()
+envdata$Raw = dat 
+
+# standardize data 
+# (Remove first line: Station)
+envdata$Scale = scale(dat[,-1])
+```
+
+# Different Distance methods
+Built-in distance methods in R
+```{r}
+#compute distance matrix
+#dist.eucl = dist(data.std,method='euclidean')
+#lstOfDist = list()
+#lstofDist$Eucl = dist(data.std,method='euclidean')
+#lstofDist$max = dist(data.std,method='maximum')
+#lstofDist$man = dist(data.std,method='manhattan')
+#lstofDist$cam = dist(data.std,method='camberra')
+#lstofDist$bin = dist(data.std,method='binary')
+#lstofDist$Mski = dist(data.std,method='minkowski')
+```
+
+Adopt distance more methods from library proxy
+```{r}
+summary(pr_DB)
+```
+* Similarity measures:
+Braun-Blanquet, Chi-squared, correlation, cosine, Cramer, Dice, eDice,
+eJaccard, Fager, Faith, Gower, Hamman, Jaccard, Kulczynski1,
+Kulczynski2, Michael, Mountford, Mozley, Ochiai, Pearson, Phi,
+Phi-squared, Russel, simple matching, Simpson, Stiles, Tanimoto,
+Tschuprow, Yule, Yule2
+
+* Distance measures:
+Bhjattacharyya, Bray, Canberra, Chord, divergence, Euclidean, fJaccard,
+Geodesic, Hellinger, Kullback, Levenshtein, Mahalanobis, Manhattan,
+Minkowski, Podani, Soergel, supremum, Wave, Whittaker
+
+Get distance matrix from dissimilarity
+```{r}
+lstOfDist <- list()
+lstOfDist$MethodType <- c(
+    'Euclidean','Maximum',
+    'Manhattan','Canberra',
+    #'Mahalanobis',
+    'Chord')
+
+# real value
+#dat <- envdata$Scale
+dat <- datCPOD$CompDmtScale
+lstOfDist$Euclidean   = dist(dat ,method='Euclidean')
+lstOfDist$Maximum     = dist(dat ,method='maximum')
+lstOfDist$Manhattan   = dist(dat ,method='manhattan')
+lstOfDist$Canberra    = dist(dat ,method='canberra')
+#lstOfDist$Mahalanobis = dist(dat, method='Mahalanobis')
+#   Error in solve.default(cov, ...) : 
+#       system is computationally singular
+lstOfDist$Chord       = dist(dat, method='Chord')
+```
+
+# Determine number of clusters
+I have found three ways to determine the number clusters
+```{r}
+#par(mfrow=c(1,1))
+par(mar = c(4,4,4,4))
+```
+
+
+### First Method: sum of squares within cluster
+The first method is to calculate the add up the sum of squares within each cluster. The analyst looks for a bend in the plot similar to a scree test in factor analysis. See Everitt & Hothorn (pg. 251).
+
+For more information;
+
+- http://www.statmethods.net/advstats/cluster.html
+
+- http://stackoverflow.com/questions/15376075/cluster-analysis-in-r-determine-the-optimal-number-of-clusters
+```{r}
+#dat <- envdata$Scale
+dat <- datCPOD$CompDmtScale
+
+# Determine number of clusters
+wss <- (nrow(dat)-1)*sum(apply(dat,2,var))
+for (i in 2:15){
+    wss[i] <- sum(kmeans(dat, centers=i)$withinss)
+} # end for loop
+```
+
+To help us finding the elbows, we can compute discrete derivative from the input sequence
+```{r}
+seqDiff <- function(x){
+    res <- x[-1] - x[-length(x)]
+    return(res)
+} # end function seqDiff
+```
+
+Here I plot two lines with different axies. For information, look up the website: https://www.r-bloggers.com/r-single-plot-with-two-different-y-axes/
+```{r}
+# First plot
+plot(1:15, wss, type="b", col="red3", 
+     xlab="Number of Clusters",
+     ylab="Within groups sum of squares (WSS)",
+     ylim=c(300,1500))
+
+# second plot
+par(new = T)
+plot(1:14, seqDiff(wss), type="b", col="grey50", 
+     axes=F, xlab=NA, ylab=NA,
+     ylim=c(-250,100))
+
+# update the axis of second plot
+axis(side = 4)
+mtext(side = 4, line = 3, cex=1.0, 'Delta WSS')
+
+# add legend
+legend("topright",
+       legend=c("WSS", "Delta WSS"),
+       lty=c(1,1), pch=c(NA, NA), 
+       col=c("red3", "grey50"))
+```
+
+From the plot, the best number of clusters might be around 5 and 6. Here I choose k=5.
+
+### Second Method:Silhouette
+The Silhouette scores are calculated by comparing distances within and among clusters. 
+
+Since we need to perform clustering first to calculate Silhouette scores, we need to choose the distance matrix
+```{r}
+numSil <- list()
+kbest  <- c()
+
+# calculate the Silhouette scores for each distance matrix
+for (idx in lstOfDist$MethodType){
+    
+    # initialize a vector
+    print(idx)
+    numSil[[idx]] <- numeric(15)
+    matDist <- lstOfDist[[idx]]
+    
+    # calculate Silhouette scores 
+    for (k in 2:15){
+        # average of Silhouette scores
+        numSil[[idx]][k] <- pam(matDist, k)$silinfo$avg.width
+    } # end inner for loop
+    
+    kbest <- c(kbest, which.max(numSil[[idx]]))
+} # end outer for loop
+
+names(kbest) <- lstOfDist$MethodType
+```
+
+plot the result
+```{r}
+library(RColorBrewer)
+n = length(lstOfDist$MethodType)
+cols = palette(rainbow(n))
+
+plot(numSil$Euclidean, type='l',
+     xlab="Number of Clusters",
+     ylab="Silhouette",
+     #xlim=c(0, 10),
+     ylim=c(0, 0.5))
+
+for (idx in seq_len(n)){
+    vec = numSil[[idx]]
+    lines( vec, col=cols[idx], lwd=2)
+    points(vec, col=cols[idx], pch=20, cex=1)
+}
+
+# add legend
+legend("topleft",
+       legend=paste(lstOfDist$MethodType, "(Best K:", kbest, ")"),
+       lty=1, pch=NA, cex=0.6, col=cols)
+```
+
+
+Silhouette Score(https://www.stat.berkeley.edu/~s133/Cluster2a.html)
+
+| Range of SC | Interpretation                                |
+|-------------|-----------------------------------------------|
+| 0.71-1.0    | A strong structure has been found             |
+| 0.51-0.70   | A reasonable structure has been found         |
+| 0.26-0.50   | The structure is weak and could be artificial |
+| < 0.25      | No substantial structure has been found       |
+
+
+It is interesting that different distance method result in different number of clusters. The number of k is 5 using Chord distance matrix and 12 using maximum distance matrix. The number is 2 for other matrix
+
+### Third Method: Calinsky criterion
+Another approach to diagnosing how many clusters suit the data. In this case we try 1 to 15 groups. Actually, I do not know how to interpret the result. For more informaiton
+```{r}
+# here we choose Euclean distance for our distance method
+matDist = lstOfDist$Euclidean
+
+# Calculate Calinsky criterion
+require(vegan)
+fit <- cascadeKM(
+    scale(matDist, center = TRUE,  scale = TRUE), 
+    1, 10, iter = 1000)
+
+# plot the result
+plot(fit, sortg = TRUE, grpmts.plot = TRUE)
+
+# show the best number of cluster
+calinski.best <- as.numeric(which.max(fit$results[2,]))
+cat("Calinski criterion optimal number of clusters:", calinski.best, "\n")
+```
+
+The third method report that the best number of cluster is 2.
+
+# Compute k-means NHC 
+recall the number of clusters for different distance matrices
+```{r}
+# result from Silhouette Scores
+print(kbest)
+```
+
+perform Kmeans clustering
+```{r}
+# initialization
+dat = datCPOD$CompDmtScale
+lstOfKClust <- list()
+
+# kmeans
+for (idx in lstOfDist$MethodType){
+    k = kbest[idx]
+    matDist = lstOfDist[[idx]]
+    lstOfKClust[[idx]] <- pam(matDist,k=k) 
+    #lstOfKClust[[idx]] <- clara(dat , k=k) 
+    # Note:
+    # Compared to other partitioning methods such as pam, 
+    # clara can deal with much larger datasets. Each sub-
+    # dataset is partitioned into k clusters using the same 
+    # algorithm as in pam.
+} # end for loop
+```
+
+
+### Bootstrap Stability Analysis
+For more information:   
+- bootstrap evaluation of clusters      
+    - https://www.r-bloggers.com/bootstrap-evaluation-of-clusters/
+- Practical Data Science with R
+    - https://www.manning.com/books/practical-data-science-with-r
+
+```{r}
+# initialization
+dat <- datCPOD$CompDmtScale
+lstOfKCBoot <- list()
+
+# evaluate cluster stability
+for (idx in lstOfDist$MethodType){
+    k = kbest[idx]
+    matDist = lstOfDist[[idx]]
+    lstOfKCBoot[[idx]] = clusterboot(
+        dat, B=100, 
+        metric=idx, ## IMPORTANT
+        bootmethod=c('boot','subset'), 
+        clustermethod=claraCBI, 
+        usepam=TRUE, 
+        k=k,        ## IMPORTANT
+        count=FALSE)
+} # end for loop
+```
+
+### Cluster around 2 mediods (clusters)
+*Euclidean Distance Method*
+```{r}
+plot(lstOfKClust$Euclidean)
+print(lstOfKCBoot$Euclidean)
+#Clusterwise Jaccard bootstrap (omitting multiple points) mean:
+#[1] 0.8560952 0.8204726
+```
+
+*Manhattan Distance Method*
+```{r}
+plot(lstOfKClust$Manhattan)
+print(lstOfKCBoot$Manhattan)
+#Clusterwise Jaccard bootstrap (omitting multiple points) mean:
+#[1] 0.8899740 0.8697414
+```
+
+*Canderra Distance Method*
+```{r}
+plot(lstOfKClust$Canberra)
+print(lstOfKCBoot$Canberra)
+#Clusterwise Jaccard bootstrap (omitting multiple points) mean:
+#[1] 0.853512 0.827116
+```
+
+### Cluster around 5 mediods (clusters)
+*Chord Distance Method*
+```{r}
+plot(lstOfKClust$Chord)
+print(lstOfKCBoot$Chord)
+#Clusterwise Jaccard bootstrap (omitting multiple points) mean:
+#[1] 0.6657579 0.4551443 0.8271187 0.6194841 0.7242302
+```
+
+### Cluster around 12 mediods (clusters)
+*Maximum Distance Method*
+```{r}
+plot(lstOfKClust$Maximum)
+print(lstOfKCBoot$Maximum)
+#Clusterwise Jaccard bootstrap (omitting multiple points) mean:
+# 0.8099762 0.4487976 0.6300000 
+# 0.5840714 0.7691667 0.6300000 
+# 0.5600000 0.6600000 0.7725000 
+# 0.6525000 0.6300000 0.6925000
+```
+
+# Conduct a Hierarchical Clustering (HC)
+recall the number of clusters for different distance matrices
+```{r}
+# result from Silhouette Scores
+print(kbest)
+```
+
+Perform Hierarchical clustering
+```{r}
+# initialization
+lstOfHClust_Ward <- list()
+lstOfHClust_Ave  <- list()
+lstOfDClust      <- list()
+
+# Hierarchical Clustering
+for (idx in lstOfDist$MethodType){
+    # set parameters
+    k = kbest[idx]
+    matDist = lstOfDist[[idx]]
+    
+    # There are two ways for HC
+    #lstOfHClust_Ward[[idx]] <- hclust(matDist, method='ward.D')
+    lstOfHClust_Ward[[idx]] <- agnes(matDist, method='ward')
+    lstOfHClust_Ave[[idx]]  <- agnes(matDist, method='average')
+    
+    # Diana
+    lstOfDClust[[idx]] <- diana(matDist)
+} # end for loop
+```
+
+### Cluster around 2 mediods (clusters)
+*Euclidean Distance Method*
+```{r}
+par(mfrow=c(2,1))
+plot(lstOfHClust_Ward$Euclidean)
+plot(lstOfHClust_Ave$Euclidean)
+plot(lstOfDClust$Euclidean)
+```
+
+*Manhattan Distance Method*
+```{r}
+par(mfrow=c(2,1))
+plot(lstOfHClust_Ward$Manhattan)
+plot(lstOfHClust_Ave$Manhattan)
+plot(lstOfDClust$Manhattan)
+```
+
+*Canberra Distance Method*
+```{r}
+par(mfrow=c(2,1))
+plot(lstOfHClust_Ward$Canberra)
+plot(lstOfHClust_Ave$Canberra)
+plot(lstOfDClust$Canberra)
+```
+
+### Cluster around 5 mediods (clusters)
+*Chord Distance Method*
+```{r}
+par(mfrow=c(2,1))
+plot(lstOfHClust_Ward$Chord)
+plot(lstOfHClust_Ave$Chord)
+plot(lstOfDClust$Chord)
+```
+
+### Cluster around 12 mediods (clusters)
+*Maximum Distance Method*
+```{r}
+par(mfrow=c(2,1))
+plot(lstOfHClust_Ward$Maximum)
+plot(lstOfHClust_Ave$Maximum)
+plot(lstOfDClust$Maximum)
+```
+
+### cophenetic correlation
+```{r}
+par(mfrow=c(3,2))
+for(idx in lstOfDist$MethodType){
+    matDist <- lstOfDist[[idx]]
+    fit <- lm(
+        as.vector(cophenetic(lstOfHClust_Ward[[idx]]))~
+        as.vector(matDist))
+                   
+    plot(
+        matDist,
+        cophenetic(lstOfHClust_Ward[[idx]]),
+        xlab="Original distances",
+        ylab="Cophenetic distances",
+        main=idx)
+    
+    abline(fit, col="red")
+}
+par(mfrow=c(1,1))
+```
+
+### aggolmerative coefficient & cophenetic correlation
+```{r}
+resCompare <- data.frame(
+    Method = c(
+        "Euclidean", "Manhattan", 
+        "Canberra", "Chord", "Maximum"),
+    k = c(2, 2, 2, 5, 12))
+
+temp <- apply(resCompare, 1, function(x){
+    # set parameters
+    idx = x[1]
+    k   = x[2]
+    matDist <- lstOfDist[[idx]]
+    
+    # Aggolmerative coefficient
+    res  = c()
+    temp = coef(lstOfHClust_Ward[[idx]])
+    res  = c(res, temp)
+    
+    temp = coef(lstOfHClust_Ave[[idx]])
+    res  = c(res, temp)
+    
+    temp = coef(lstOfDClust[[idx]])
+    res  = c(res, temp)
+    
+    # cophenetic correlation
+    temp = cor(matDist, cophenetic(lstOfHClust_Ward[[idx]]))
+    res  = c(res, temp)
+    
+    temp = cor(matDist, cophenetic(lstOfHClust_Ave[[idx]]))
+    res  = c(res, temp)
+    
+    temp = cor(matDist, cophenetic(lstOfDClust[[idx]]))
+    res  = c(res, temp)
+    
+    # return the result
+    names(res) <- c(
+        paste("AggoCoef", c("Ward", "Ave", "Diana")),
+        paste("CophCorr", c("Ward", "Ave", "Diana")))
+    return(res)
+})
+
+# Combine results
+resCompare <- cbind(resCompare, t(as.data.frame(temp)))
+print(resCompare)
+```
+
+### Silhouette Score
+Silhouette Score of cut hierarchical tree. Here I use Ward method with Euclidean distance matrix
+```{r}
+plot(silhouette(
+    cutree(lstOfHClust_Ward$Euclidean,2),
+    lstOfDist$Euclidean),
+    main="Silhouette Scores\n(HC; Ward Method; Euclidean Distance; Cut Tree: k=2")
+```
+
+### Description of Clusters
+boxplot of different clusters
+```{r}
+dat <- datCPOD$CompDmtScale
+#which.max(apply(dat, 2, mad))
+#=> Canthocalanus pauper 
+                    
+# plot
+boxplot(
+    dat[,"Canthocalanus pauper"] ~ lstOfKClust$Chord$clustering,
+    xlab="Clusters (from K-Means, Chord Distance)",
+    ylab="Value",
+    main="Percent(%) of Canthocalanus pauper in Different Clusters")
+```
+
+Kruskal-Wallis test
+```{r}
+kruskal.test(
+    dat[,"Canthocalanus pauper"] ~ lstOfKClust$Chord$clustering
+)
+```
+

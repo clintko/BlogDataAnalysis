@@ -1,9 +1,28 @@
-envdata = read.table('enviANDdensity.txt',header=T)
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+
+filePathData <- file.path(
+    workdir,
+    "Data/StatCompEcology/Copepod")
+
+envdata = read.table(
+    file.path(
+        filePathData,
+        'enviANDdensity.txt'),header=T)
+
+#########################################################
+install.packages("vegan")
+install.packages("cluster")
+install.packages("fpc")
+
+#install.packages("TWIX")
+#Note:170417
+#Package ‘TWIX’ was removed from the CRAN repository.
 
 library(vegan)
 library(cluster)
 library(fpc)
-library(TWIX)
+#library(TWIX)
 
 ##Conduct a Nonhierarchical Clustering (NHC)
 
@@ -30,7 +49,7 @@ print(y.eucl.boot)
 
 ##Conduct a Hierarchical Clustering (HC)
 
-y.eucl.ward = hclust(dist.eucl,method='ward')  #two way of doing HC
+y.eucl.ward = hclust(dist.eucl,method='ward.D')  #two way of doing HC
 y.eucl.ward = agnes(dist.eucl,method='ward')
 y.eucl.dia = diana(dist.eucl)
 
@@ -40,6 +59,8 @@ rect.hclust(y.eucl.ward,k=5) #cut by #clusters
 rect.hclust(y.eucl.ward,h=5) #cut by height
 
 #aggolmerative coefficient
+#y.eucl.ave = hclust(dist.eucl,method='average') # Edit 170417
+y.eucl.ave = agnes(dist.eucl, method='average') # Edit 170417
 summary(y.eucl.ave)$ac 
 
 #cophenetic correlation

@@ -59,28 +59,36 @@ apply(dat,2, mean)
 cov(dat)
 ```
 
+# question 1b
 ```{r}
 myKernal <- function(x, lstModel){
     p <- length(x)
-    x <- matrix(x, ncol=1)
+    x <- matrix(as.numeric(x), ncol=1)
     
     mu          <- matrix(lstModel$mu1, ncol=1)
     sigmaInv    <- lstModel$prec1
     sigmaDetlog <- lstModel$detsig_log
     
     valKernal <- -0.5 * t(x - mu) %*% sigmaInv %*% (x - mu)
-    res <- (-p/2) * sigmaDetlog + valKernal
+    res <- as.numeric((-p/2) * sigmaDetlog + valKernal)
     return(res)
 }
-```
 
-```{r}
-pgm_predict <- function(lstOfModel, x){
-    res <- lapply(lstOfModel, function(lstModel){
-        return(myKernal(x, lstModel))
-    })
-    which()
+pgm_predict <- function(lstOfModel, dat){
+    # 
+    res <- apply(dat, 1, function(x){
+        vec <- lapply(lstOfModel, function(lstModel){
+            return(myKernal(x, lstModel))
+        }) # end lapply
+        
+        idx <- order(
+            unlist(vec), 
+            decreasing = TRUE)[1]
+        return(idx)
+    }) # end apply
     
+    # return
+    names(res) <- NULL
     return(res)
 }
 ```
@@ -88,5 +96,17 @@ pgm_predict <- function(lstOfModel, x){
 ```{r}
 load('phonetrain.rdata') 
 load('phonetest1.rdata') 
+```
+
+```{r}
+dat <- testds1_feature
+dat[1,]
+
+myKernal(dat[1,], model1[[1]])
+
+
+unlist(pgm_predict(model1, dat[1,]))
+
+pgm_predict(model1, dat)[1:50]
 ```
 
