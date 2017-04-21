@@ -1,0 +1,129 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年4月20日"
+output: html_document
+---
+```{r}
+library(vegan)
+library(cluster)
+library(fpc)
+library(dplyr)
+```
+
+```{r}
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+
+filePathData <- file.path(
+    workdir,
+    "Data/StatCompEcology/Copepod")
+
+envdata = read.table(
+    file.path(
+        filePathData,
+        'enviANDdensity.txt'),header=T)
+```
+
+standardize data
+```{r}
+data = envdata[,-1]
+data.std = scale(data)
+```
+
+distance matrix
+```{r}
+distEU = dist(data.std,method='euclidean')
+matDist = as.matrix(distEU)
+```
+
+clustering
+```{r}
+resTree = agnes(distEU,method='ward')
+plot(resTree)
+resClus = cutree(resTree, k=5)
+names(resClus) <- 1:34
+
+resClus
+```
+
+
+```{r}
+n <- 34
+idxPair <- t(combn(1:n, 2))
+
+#################################################
+
+distPair < apply(idxPair, 1, function(x){
+    idx1 <- x[1]
+    idx2 <- x[2]
+    res <- matDist[idx1,idx2]
+}) # end apply
+
+distRank <- rank(-distPair) # rank from the smallest
+#################################################
+
+isWithin <- apply(idxPair, 1, function(x){
+    idx1 <- x[1]
+    idx2 <- x[2]
+    res <- ifelse(resClus[idx1] == resClus[idx2], 1, 0)
+})
+isBetween <- ifelse(isWithin, 0, 1)
+
+#################################################
+#combine
+idxPair <- cbind(idxPair, distPair, distRank)
+idxPair <- cbind(idxPair, isWithin, isBetween)
+#convert to data frame
+idxPair <- as.data.frame(idxPair)
+```
+
+
+ANOSIM
+```{r}
+rankW <- idxPair$distRank[
+    ifelse(idxPair$isWithin, T, F)]
+rankB <- idxPair$distRank[
+    ifelse(idxPair$isBetween, T, F)]
+
+M <- n * (n-1) / 2
+
+statANOSIM <- (mean(rankW) - mean(rankB)) / (M/2)
+```
+
+Mantel
+```{r}
+x <- idxPair$distPair 
+y <- idxPair$isBetween
+statMantel <- sum(x*y)
+```
+
+built-in function
+```{r}
+anosim(dat = matDist, grouping=resClus)
+```
+
+```{r}
+mat <- matrix(0, ncol=34,nrow=34)
+for(idx in seq_len(nrow(idxPair))){
+    idx1 <- idxPair$V1[idx1]
+}
+mat[idxPair$V1, idxPair$V2]
+mat[idxPair$V2, idxPair$V1]
+
+idxPair$isBetween
+mantel(xdis=matDist, ydis)
+```
+
+
+```{r}
+myANOSIM <- function(x){
+    
+}
+```
+
+
+```{r}
+myMantel <- function()
+```
+
