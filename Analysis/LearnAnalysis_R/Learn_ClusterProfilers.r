@@ -39,5 +39,5 @@ datAnno <- data.frame(
 lst <- split(datAnno$gene, datAnno$ont)
 datItem <- unique(c(sample(lst$A, 10), sample(1:100, 20)))
 
-res <- enricher(datItem, TERM2GENE=datAnno)
-head(res)
+tmp <- enricher(datItem, TERM2GENE=datAnno)
+head(tmp)
