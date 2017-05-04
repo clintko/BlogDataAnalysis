@@ -1,0 +1,88 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年4月25日"
+output: html_document
+---
+# Set Environment
+```{r}
+library(vegan)
+```
+
+# Group Differences
+- Multi-Response Permutation Procedures (MRPP) 
+- Analysis of Group Similarities (ANOSIM) 
+- Mantel's Test
+
+# MRPP
+http://cc.oulu.fi/~jarioksa/softhelp/vegan/html/mrpp.html
+```{r}
+data(dune)
+data(dune.env)
+dune.mrpp <- mrpp(dune, dune.env$Management)
+dune.mrpp
+
+# Save and change plotting parameters
+def.par <- par(no.readonly = TRUE)
+layout(matrix(1:2,nr=1))
+
+plot(dune.ord <- metaMDS(dune), type="text", display="sites" )
+ordihull(dune.ord, dune.env$Management)
+
+with(dune.mrpp, {
+  fig.dist <- hist(boot.deltas, xlim=range(c(delta,boot.deltas)), 
+                 main="Test of Differences Among Groups")
+  abline(v=delta); 
+  text(delta, 2*mean(fig.dist$counts), adj = -0.5,
+     expression(bold(delta)), cex=1.5 )  }
+)
+par(def.par)
+## meandist
+dune.md <- meandist(vegdist(dune), dune.env$Management)
+dune.md
+summary(dune.md)
+plot(dune.md)
+
+```
+
+```{r}
+plot.mrpp <- function(x, y, ...) {
+   with(x, {
+   fig.dist <- hist(boot.deltas, xlim=c(range(delta, boot.deltas), ...), 
+                  main="Are groups significantly different?", xlab=call)
+   abline(v=delta); 
+   text(delta, diff(range(fig.dist$counts))/2, adj = -0.5,
+     expression(bold(delta)), cex=1.5 )  }
+    ) # end with
+}
+plot(dune.mrpp)
+plot(dune.mrpp, dune.env$Management)
+plot.mrpp(dune.mrpp, dune.env$Management)
+```
+
+
+
+# ANOSIM
+http://cc.oulu.fi/~jarioksa/softhelp/vegan/html/anosim.html
+```{r}
+data(dune)
+data(dune.env)
+dune.dist <- vegdist(dune)
+attach(dune.env)
+dune.ano <- anosim(dune.dist, Management)
+summary(dune.ano)
+plot(dune.ano)
+
+```
+
+# Mantel Test
+```{r}
+## Is vegetation related to environment?
+data(varespec)
+data(varechem)
+veg.dist <- vegdist(varespec) # Bray-Curtis
+env.dist <- vegdist(scale(varechem), "euclid")
+mantel(veg.dist, env.dist)
+mantel(veg.dist, env.dist, method="spear")
+```
+

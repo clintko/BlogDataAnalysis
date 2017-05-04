@@ -1,0 +1,435 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年4月25日"
+output: html_document
+---
+
+# Set Environment
+import necessary library 
+```{r, warning=FALSE}
+#library(dyplyr)
+#library(tidyr)
+#library(ggplot2)
+library(vegan)
+library(MASS)
+library(cluster)
+library(fpc)
+library(proxy)
+library(RColorBrewer)
+
+# a bioconductor package for heatmap
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("ComplexHeatmap")
+library(ComplexHeatmap)
+
+# a CRAN package for dendrogram
+# install.packages("dendextend")
+library(dendextend)
+```
+
+setting directories
+```{r}
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+
+filePathData <- file.path(
+    workdir,
+    "Data/StatCompEcology/Copepod")
+```
+
+# Import data
+Read in the copepod data recorded in different stations and preprocess the data to find the dominant species. The final matrix is teh frequency matrix of dominant species in different stations 
+```{r}
+# intialize a list to store data
+datCPOD <- list()
+
+# read tables
+dat <- read.table(file.path(
+    filePathData, "cop_density.txt"), 
+    header=T)
+datCPOD$Density <- dat
+
+dat <- read.table(file.path(
+    filePathData, "copepod_composition.txt"), 
+    header=T)
+datCPOD$Compose <- dat
+
+dat <- read.table(file.path(
+    filePathData, "copepodSPlist.txt"),
+    sep="\t", header=F)
+datCPOD$SP_Total <- as.character(dat$V1)
+
+# Search for dominant species
+dat <- datCPOD$Compose
+temp <- apply(dat >= 2, 1, sum) 
+datCPOD$SP_Dominant <- which(temp > 0)
+
+# Extract the composition of dominant species
+dat <- datCPOD$Compose
+idx <- datCPOD$SP_Dominant 
+idn <- datCPOD$SP_Total
+dat <- dat[idx,]
+rownames(dat) <- idn[idx]
+
+# composition of dominant species
+# Note: transform the matrix since 
+# we are clustering on stations
+datCPOD$CompDmt <- t(dat)
+datCPOD$CompDmtScale <- scale(t(dat)) # scales the columns of a numeric matrix
+#head(datCPOD$CompDmtScale)
+```
+
+Visualize the data
+```{r}
+dat <- datCPOD$CompDmt
+ht1 <- Heatmap(
+    dat, column_title = "Before scaled...",
+    row_names_gp = gpar(fontsize = 10),
+    column_names_max_height=unit(15, "cm"),
+    column_names_gp = gpar(fontsize = 10),
+    cluster_rows=F, cluster_columns=F)
+
+dat <- datCPOD$CompDmtScale
+ht2 <- Heatmap(
+    dat, column_title = "After scaled...",
+    row_names_gp = gpar(fontsize = 10),
+    column_names_max_height=unit(15, "cm"),
+    column_names_gp = gpar(fontsize = 10),
+    cluster_rows=F, cluster_columns=F)
+
+draw(ht1 + ht2, 
+     column_title = "Compare the data before/after scaled",
+     column_title_side = "bottom")
+```
+
+
+
+# Clustering the data
+The code is the same as homeword 8
+
+here we will use the Euclidean matrix only
+```{r}
+dat <- datCPOD$CompDmtScale
+matDistEU <- dist(dat, method='Euclidean')
+```
+
+Show the distance matrix
+```{r}
+mat <- matDistEU
+
+ht <- Heatmap(
+    as.matrix(mat), 
+    column_title = "Distance Matrix (Euclidean Method)",
+    cluster_rows=F, cluster_columns=F)
+draw(ht)
+```
+
+Calculate Silhouette Score to determine number of clusters
+```{r}
+# distance matrix
+mat <- matDistEU
+numSil <- numeric(15)
+
+# calculate Silhouette scores 
+for (k in 2:15){
+    # average of Silhouette scores
+    numSil[k] <- pam(mat, k)$silinfo$avg.width
+} # end inner for loop
+
+# find the best number of k
+kbest <- which.max(numSil)
+
+# plot the Silhouette scores of each k
+plot(numSil, type='l',
+     xlab="Number of Clusters",
+     ylab="Silhouette",
+     main=
+         paste("Sihouette Scores", "\n", 
+               "Best k:", kbest),
+     ylim=c(0, 0.2),
+     col="grey20")
+points(numSil, pch=20, cex=1, col="grey20")
+```
+
+Cluster the data
+```{r}
+# cluster
+mat <- matDistEU
+hc_ward <- agnes(mat, method='ward')
+
+# plot the tree
+plot(hc_ward)
+```
+
+cut the tree
+```{r}
+hc <- as.dendrogram(hc_ward)
+numClustk2 <- cutree(hc, k=2)
+numClustk3 <- cutree(hc, k=3)
+```
+
+**plot the result**
+```{r}
+dat <- datCPOD$CompDmtScale
+dend  <- as.dendrogram(hc_ward)
+```
+
+k = 2
+```{r}
+Heatmap(dat,
+        row_dend_width = unit(20, "mm"),
+        cluster_rows = color_branches(dend, k=2),
+        cluster_columns=T,
+        show_column_dend=F)
+```
+
+k = 3
+```{r}
+Heatmap(dat,
+        row_dend_width = unit(20, "mm"),
+        cluster_rows = color_branches(dend, k=3),
+        cluster_columns=T,
+        show_column_dend=F)
+```
+
+plot non-metric multidimensional scaling
+*Note:*
+- The code is from the R Documentation of function mrpp{vegan} 
+- http://cc.oulu.fi/~jarioksa/softhelp/vegan/html/mrpp.html
+- Since there is negative value in scaled data, here I use unscaled data
+```{r}
+# NDMS calculation
+dat <- datCPOD$CompDmt
+resNMDS <- metaMDS(dat)
+
+# set plot
+par(mfrow=c(1,2))
+
+# plot NDMS plot w/ k = 2
+plot(resNMDS, type="text", display="sites")
+ordihull(resNMDS, numClustk2)
+
+# plot NDMS plot w/ k = 3
+plot(resNMDS, type="text", display="sites" )
+ordihull(resNMDS, numClustk3)
+
+# set plot
+par(mfrow=c(1,1))
+```
+
+# Group Differences
+Perform MRPP
+```{r}
+dat <- datCPOD$CompDmtScale
+resMrpp <- mrpp(
+    #dat: rows are samples and columns are response variable(s)
+    dat, 
+    #grouping: Factor or numeric index for grouping observations.
+    grouping=numClustk2)
+```
+
+plot MRPP
+```{r}
+with(resMrpp, {
+  fig.dist <- hist(boot.deltas, xlim=range(c(delta,boot.deltas)), 
+                 main="Test of Differences Among Groups")
+  abline(v=delta); 
+  text(delta, 2*mean(fig.dist$counts), adj = -0.5,
+     expression(bold(delta)), cex=1.5 )  }
+)
+```
+
+Show results
+```{r}
+print(resMrpp)
+```
+
+# Linear Discriminant Analysis (LDA)
+Q2. Use one of the results from the cluster analysis of your 
+previous homework to perform discriminant analysis (DA). 
+Describe 1) whether your data meet the requirement for 
+doing DA, and, 2) if so, which species are most distinct 
+among the clusters. 
+
+
+drop collinear variables
+```{r}
+dat <- datCPOD$CompDmtScale
+#go through each variable and drop variables with small F values
+#as.dist(cor(dat))   #check for multicollinearity
+#summary(aov(dat~as.factor(numClustk3)))   
+
+#check linearity among variables
+#pairs(y[3:8])    
+#par(mar=c(1,1,1,1))
+#pairs(dat)
+```
+
+Store results in two list (k=2 & k=3)
+```{r}
+# initialization
+lstK2 <- list()
+lstK3 <- list()
+
+# store the cluster groups
+lstK2$NumClust <- numClustk2
+lstK3$NumClust <- numClustk3
+```
+
+perform LDA
+```{r}
+# here I test for k=2 and k=3
+lstK2$LDA <- lda(dat, grouping=numClustk2) 
+lstK3$LDA <- lda(dat, grouping=numClustk3) 
+
+# acquire SVD decomposition of LDA result
+# (svd^2 gives eigenvalues)
+lstK2$SVD <- lstK2$LDA$svd
+lstK3$SVD <- lstK3$LDA$svd
+
+# relative magnitude of eigenvalue
+lstK2$RelEig <- lstK2$SVD^2 / sum(lstK2$SVD^2)
+lstK3$RelEig <- lstK3$SVD^2 / sum(lstK3$SVD^2)
+```
+
+classification based on DA
+```{r}
+lstK2$Pred = predict(lstK2$LDA)
+lstK3$Pred = predict(lstK3$LDA)
+
+lstK2$Scores = lstK2$Pred$x
+lstK3$Scores = lstK3$Pred$x
+```
+
+visually inspect group difference in canonical scores
+```{r}
+# set plot
+par(mfrow=c(1,3))
+
+# boxplot
+res = data.frame(
+    Group=lstK2$NumClust,
+    LD1=lstK2$Scores)
+boxplot(LD1~Group, data = res)
+#range(res$LD1)
+#boxplot(LD1~Group, data = res, ylim=c(-12, 12),
+#        notch=TRUE,varwidth=TRUE)
+
+# boxplot
+res = data.frame(
+    Group=lstK3$NumClust,
+    LD1=lstK3$Scores)
+boxplot(LD1.LD1~Group, data=res)
+boxplot(LD1.LD2~Group, data=res)
+
+# reset plot
+par(mfrow=c(1,1))
+```
+
+classification table
+```{r}
+# classification table
+lstK2$Table = table(
+    lstK2$NumClust,
+    lstK2$Pred$class)
+
+# correct classification rate
+lstK2$ClassRate <- sum(diag(lstK2$Table))/sum(lstK2$Table)
+
+# classification table
+lstK3$Table = table(
+    lstK3$NumClust,
+    lstK3$Pred$class)
+
+# correct classification rate
+lstK3$ClassRate <- sum(diag(lstK3$Table))/sum(lstK3$Table)
+
+# print the result
+print(lstK2$Table)
+print(lstK3$Table)
+print(lstK2$ClassRate)
+print(lstK3$ClassRate)
+```
+
+# Classifcation And Regression Tree
+3. Use the “dominant” copepod species data (from HW1).  
+Perform CART of stations based on percent composition data of 
+the dominant species, and tell your story about these copepod 
+data.  You can use also the environmental data if you wish.   
+ 
+You are allowed to use whatever built-in functions in Matlab or R, 
+such as classregtree.m. 
+
+package for CART
+```{r}
+library(rpart)
+```
+
+
+```{r}
+dat = datCPOD$CompDmtScale
+    
+# K=2
+res = rpart(
+    lstK2$NumClust~dat,
+    method='class',
+    parms=list(split='gini')) 
+lstK2$Tree1 <- res
+
+res = rpart(
+    lstK2$NumClust~dat,
+    method='class',
+    parms=list(
+        prior=c(0.5, 0.5),
+        split='gini'))  #specify prior
+lstK2$Tree2 <- res
+##############################################
+# K=3
+res = rpart(
+    lstK3$NumClust~dat,
+    method='class',
+    parms=list(split='gini')) 
+lstK3$Tree1 <- res
+
+res = rpart(
+    lstK3$NumClust~dat,
+    method='class',
+    parms=list(
+        prior=c(0.33, 0.33, 0.34),
+        split='gini'))  #specify prior
+lstK3$Tree2 <- res
+```
+
+plot the results (k=2)
+```{r}
+res <- lstK2$Tree1
+grp <- lstK2$NumClust
+
+# plot the tree
+plot(res,margin=0.1)
+text(res)
+
+# print the residulas
+print(
+    1-sum(residuals(res)^2)/
+        sum((grp-mean(grp,na.rm=T))^2,
+    na.rm=T))
+```
+
+plot the results (k=3)
+```{r}
+res <- lstK3$Tree1
+grp <- lstK3$NumClust
+
+# plot the tree
+plot(res,margin=0.1)
+text(res)
+
+# print the residulas
+print(
+    1-sum(residuals(res)^2)/
+        sum((grp-mean(grp,na.rm=T))^2,
+    na.rm=T))
+```
+

@@ -1,0 +1,58 @@
+---
+title: "Lec170427_PCA"
+author: "Kuei Yueh Ko"
+date: "2017年4月27日"
+output: html_document
+---
+
+```{r}
+#library(devtools)
+#install_github("ggbiplot", "vqv")
+library(vegan)
+data(dune)
+data(iris)
+```
+
+```{r}
+dat <- iris[,1:4]
+```
+
+correlation vs covariance matrix
+```{r}
+datScale <- scale(dat)
+
+cov(datScale)
+cor(dat)
+```
+
+```{r}
+lstRes <- list()
+lstRes$Cor <- cor(dat)
+```
+
+```{r}
+lstRes$Eig <- eigen(lstRes$Cor)
+lstRes$Eig$vectors
+lstRes$Eig$values
+```
+
+```{r}
+sum(lstRes$Eig$values)
+sum(diag(lstRes$Cor))
+```
+
+```{r}
+princomp()
+```
+
+```{r}
+data(dune) # a data 
+dune1 <- dune[]
+```
+
+check assumptions
+```{r}
+pairs(dun1)
+```
+
+

@@ -1,5 +1,7 @@
 #Discriminant analysis
-herring = read.csv('herring.csv',header=TRUE) 
+filepath <- 'herring.csv'
+filePath <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis\\Data\\StatCompEcology\\herring.csv"
+herring = read.csv(filePath,header=TRUE) 
 
 y = herring[,-c(1:2)] 
 grp = herring[,1] 

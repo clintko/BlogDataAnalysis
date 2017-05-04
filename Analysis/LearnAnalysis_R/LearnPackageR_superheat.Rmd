@@ -1,0 +1,89 @@
+---
+title: "Learn Package SuperHeat"
+author: "Kuei Yueh Ko"
+date: "2017年4月26日"
+output: html_document
+---
+
+Package
+https://github.com/rlbarter/superheat
+
+Vignette
+https://rlbarter.github.io/superheat/
+
+# install package
+
+```{r}
+install.packages("superheat")
+library(superheat)
+```
+
+```{r}
+superheat(mtcars,
+          # normalize variables
+          scale = T,
+          # order rows/cols based on heirarchical clustering
+          pretty.order.rows = TRUE,
+          pretty.order.cols = TRUE,
+          # plot miles per gallon next to the rows
+          yr = mtcars$mpg,
+          yr.axis.name = "miles per gallon",
+          # plot correlation with mpg above columns
+          yt = cor(mtcars)[, "mpg"],
+          yt.plot.type = "bar",
+          yt.axis.name = "correlation with mpg",
+          # increase size of left labels
+          left.label.size = 0.45)
+
+```
+
+# Basic
+```{r}
+superheat(mtcars,
+          # change the size of the labels
+          left.label.size = 0.4,
+          bottom.label.size = 0.1)
+```
+
+```{r}
+superheat(mtcars,
+          # scale the matrix columns
+          scale = TRUE)
+```
+
+
+# Chapter 3 Ordering rows and columns
+```{r}
+# generate the plot:
+superheat(mtcars,
+          # retain original order of rows/cols
+          pretty.order.rows = TRUE,
+          pretty.order.cols = TRUE,
+          # scale the matrix columns
+          scale = TRUE)
+```
+
+```{r}
+# generate the plot:
+superheat(mtcars,
+          # order the rows by miles per gallon
+          order.rows = order(mtcars$mpg),
+          # scale the matrix columns
+          scale = TRUE)
+```
+
+# Chapter 8 Adjacent plots
+```{r}
+# plot a super heatmap
+superheat(dplyr::select(mtcars, -mpg), 
+          # scale the variables/columns
+          scale = T,
+          
+          # add mpg as a scatterplot next to the rows
+          yr = mtcars$mpg,
+          #yr.plot.type = "scatter", 
+          #yr.plot.type = "line",
+          yr.plot.type = "scatterline",
+          yr.axis.name = "miles per gallon")
+```
+

@@ -1,0 +1,371 @@
+---
+title: "170427_HW10_DimReduct"
+author: "Kuei Yueh Ko"
+date: "2017年5月4日"
+output: html_document
+---
+
+# Set Environment
+import needed package
+```{r}
+library(ComplexHeatmap)
+library(knitr)
+```
+
+set directories
+```{r}
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+
+filePathData <- file.path(
+    workdir,
+    "Data/StatCompEcology/Copepod")
+```
+
+# Import data
+Read in the copepod data recorded in different stations and preprocess the data to find the dominant species. The final matrix is teh frequency matrix of dominant species in different stations 
+
+We import two dataset:  
+
+1. cop_density.txt
+    + copepod total density (number/m^3) recorded in each station
+2. copepod_composition.txt
+    + frequency of each copepod specie recorded in each station.
+3. copepodSPlist.txt
+    + Species names along the rows of data copepod_composition.txt
+
+**Note: Definition of dominant species:**
+
+* species >=2% of total composition in any cruise-station
+
+```{r}
+# intialize a list to store data
+datCPOD <- list()
+
+# read tables: number of copepod in each station
+# 34 stations
+dat <- read.table(file.path(
+    filePathData, "cop_density.txt"), 
+    header=T)
+datCPOD$Density <- dat
+
+# read tables: freq of copepod in each station
+# 34 stations x 181 species
+dat <- read.table(file.path(
+    filePathData, "copepod_composition.txt"), 
+    header=T)
+datCPOD$Compose <- dat
+
+# read tables: species name
+# 181 species
+dat <- read.table(file.path(
+    filePathData, "copepodSPlist.txt"),
+    sep="\t", header=F)
+datCPOD$SP_Total <- as.character(dat$V1)
+
+# Search for dominant species
+dat <- datCPOD$Compose
+temp <- apply(dat >= 2, 1, sum) 
+datCPOD$SP_Dominant <- which(temp > 0)
+
+# Extract the composition of dominant species
+dat <- datCPOD$Compose
+idx <- datCPOD$SP_Dominant 
+idn <- datCPOD$SP_Total
+dat <- dat[idx,]
+rownames(dat) <- idn[idx]
+
+# composition of dominant species
+# Note: transform the matrix since 
+# we are clustering on stations
+datCPOD$CompDmt <- t(dat)
+datCPOD$CompDmtScale <- scale(t(dat)) # scales the columns of a numeric matrix
+#head(datCPOD$CompDmtScale)
+```
+
+Visualize the data after preprocess (find the dominant species and scale the result data matrix)
+```{r}
+# Original data matrix of dominant species in different stations
+dat <- datCPOD$CompDmt
+ht1 <- Heatmap(
+    dat, column_title = "Before scaled...",
+    row_names_gp = gpar(fontsize = 10),
+    column_names_max_height=unit(15, "cm"),
+    column_names_gp = gpar(fontsize = 10),
+    cluster_rows=F, cluster_columns=F)
+
+# Scaled data matrix of dominant species in different stations
+dat <- datCPOD$CompDmtScale
+ht2 <- Heatmap(
+    dat, column_title = "After scaled...",
+    row_names_gp = gpar(fontsize = 10),
+    column_names_max_height=unit(15, "cm"),
+    column_names_gp = gpar(fontsize = 10),
+    cluster_rows=F, cluster_columns=F)
+
+# plot
+draw(ht1 + ht2, 
+     column_title = "Compare the data before/after scaled",
+     column_title_side = "bottom")
+```
+
+# Principal Component Analysis (Using Linear Algebra)
+## Eigendecomposition (Diagnolization)
+Suppose we have a data matrix with n observations and p variables
+
+$X \in \mathbb{R}^{nxp}$
+
+We can calculate the correlation matrix of variables, resulting in a pxp matrix
+
+$\Sigma = \frac{1}{n-1} X^T H X$
+
+Perform eigendecomposition
+
+$\Sigma = Q \Lambda Q^T$
+
+$Q = [v_1 v_2 \cdots v_p] D = [\lambda_1 \lambda_2 \cdots \lambda_p]$
+
+where
+
+$\Sigma v_i = \lambda_i v_i$
+
+$\Sigma = \lambda_1 v_1 v_1^T + \cdots + \lambda_p v_p v_p^T$
+
+```{r}
+dat <- datCPOD$CompDmtScale
+mat <- cor(dat)
+res.eig <- eigen(mat)
+#res.pca <- prcomp(dat, scale=TRUE, center=TRUE)
+```
+
+## Eigenvalues and Variance
+```{r}
+# Eigenvalues
+eig <- res.eig$values^0.5
+eig <- eig[!is.na(eig)]
+
+# Variances in percentage
+variance <- eig*100/sum(eig)
+
+# Cumulative variances
+cumvar <- cumsum(variance)
+
+# Combine the result
+dat <- data.frame(
+    eig = eig, 
+    variance = variance,
+    cumvariance = cumvar)
+kable(head(dat))
+```
+
+## The screeplot of variance (Eigen value)
+```{r}
+# Barplot of the value of variance in percentage
+plt <- barplot(
+    dat$variance, 
+    names.arg=1:nrow(dat), 
+    main = "Variances",
+    xlab = "Principal Components",
+    ylab = "Percentage of variances",
+    col ="steelblue")
+
+# Add connected line segments to the plot
+lines(x = plt, 
+      y = dat$variance, 
+      type="b", pch=19, col = "red")
+```
+
+## PCA Scores
+The effect of diagnolization is to change the data into the new basis, which is the eigenvectors.
+Let new coordinates $Y=XQ$
+
+```{r}
+dat <- datCPOD$CompDmtScale
+mat <- res.eig$vectors
+res.eig$x <- as.matrix(dat) %*% mat
+```
+
+## PCA Loading
+The meaning of PCA loading is the correlation between the PC scores and the variables in original data matrix. That is, loadings are the correlation of variables before change of basis and after change of basis.
+
+In fact, the following two equations allow us to calculate PCA loadings
+
+$[\sqrt{\lambda_1} v_1 \cdots \sqrt{\lambda_p} v_p] = QD^\frac{1}{2}$
+
+$\frac{1}{n-1} X^T H scaled(Y)$
+
+```{r}
+# Here we will try four kinds of calculation
+dat <- datCPOD$CompDmtScale
+vec <- res.eig$values^0.5
+mat <- res.eig$vectors
+res <- list()
+```
+
+Calculate the loading by 
+
+$[\sqrt{\lambda_1} v_1 \cdots \sqrt{\lambda_p} v_p] = QD^\frac{1}{2}$
+```{r}
+# Use apply 
+res$Method1 <- t(apply(mat, 1, function(x){x * vec}))
+
+# Use Matrix Multiplication
+res$Method2 <- mat %*% diag(vec)
+```
+
+
+Calculate the correlation of variables and PCA scores directly using loop
+```{r}
+# Calculate correlation
+n <- ncol(dat)
+idx <- expand.grid(1:n, 1:n)
+
+tmp  <- mapply(
+    function(idx1,idx2){
+        cor(dat[,idx1], res.eig$x[,idx2])
+    },idx[,1], idx[,2])
+
+res$Method3 <- matrix(tmp,n,n,byrow = FALSE)
+```
+
+
+Calculate the correlation of matrix of X and Y. Since the X matrix is scaled already, here we will scaled Y before calculation.
+
+$\Sigma = \frac{1}{n-1} X^T H scaled(Y)$
+```{r}
+n <- nrow(dat)
+H <- diag(n) - 1/n * outer(rep(1,n), rep(1,n))
+res$Method4 = 1/(n-1) * t(as.matrix(dat)) %*% H %*% scale(res.eig$x)
+```
+
+It turns out all the calculations result in the same results
+```{r}
+res$Method1[1:5, 1:5]
+res$Method2[1:5, 1:5]
+res$Method3[1:5, 1:5]
+res$Method4[1:5, 1:5]
+
+res.eig$loading <- res$Method1
+res.eig$loading <- res$Method2
+res.eig$loading <- res$Method3
+res.eig$loading <- res$Method4
+```
+
+# Plotting 
+Graph of variables using R base graph
+```{r}
+# plot the loadings
+mat <- res.eig$loading
+
+# Plot the correlation circle
+idx <- seq(0, 2*pi, length = 100)
+plot(cos(idx), sin(idx), 
+     type = 'l', col="gray",
+     xlab = "PC1", ylab = "PC2")
+abline(h = 0, v = 0, lty = 2)
+
+# Add active variables
+arrows(0, 0, mat[, 1], mat[, 2], 
+      length = 0.1, angle = 15, code = 2)
+
+# Add labels
+text(mat, labels=rownames(mat), cex = 0.7, adj=1)
+```
+
+Graph of individuals : base graph
+```{r}
+# plot the scores
+mat <- res.eig$x
+plot(mat[,1], mat[,2], 
+     pch = 19,  
+     xlab="PC1",ylab="PC2",
+     ylim=c(-6,6))
+
+# add coordinates
+abline(h=0, v=0, lty = 2)
+
+# Add labels
+text(mat[,1], mat[,2], 
+     labels=rownames(mat),
+     cex=0.7, pos = 3)
+```
+
+plot in one figure
+```{r}
+biplot(res.eig$x, res.eig$loading, 
+       xlab = "PC1", ylab = "PC2")
+```
+
+# Multiple Dimensional Scaling (MDS)
+Unlike PCA, which performs decomposition on covariance or correlation matrix, MDS performs decomposition on dissimilarity matrix, e.g. Euclidean distance.
+
+
+The code refers to  the website "R-statistics blog"
+
+https://www.r-statistics.com/2016/01/multidimensional-scaling-with-r-from-mastering-data-analysis-with-r/
+
+```{r}
+dat <- datCPOD$CompDmtScale
+mat <- as.matrix(dist(dat))
+```
+
+we can perform MDS analysis using the built-in function cmdscale
+```{r}
+res.mds <- cmdscale(mat, eig = TRUE, k = 2)
+```
+
+plot the results
+```{r}
+# get the scores
+x <- res.mds$points[, 1]
+y <- res.mds$points[, 2]
+
+# plot
+plot(x, y, pch = 19, 
+     xlim = c(-4, 8),
+     ylim = c(-6, 6))
+
+# species names of dominant species
+vec <- datCPOD$SP_Total[datCPOD$SP_Dominant]
+
+# add labels
+text(x, y, pos = 4, labels = vec, cex=0.5)
+```
+
+
+# Non metric MDS (NMDS)
+The code refers to http://www.statmethods.net/advstats/mds.html
+```{r}
+dat <- datCPOD$CompDmtScale
+mat <- as.matrix(dist(dat))
+```
+
+perform NMDS using function isoMDS
+```{r}
+# the function isoMDS if from library MASS
+library(MASS)
+
+# NDMS calculation
+res.nmds <- isoMDS(mat)
+```
+
+plot the results
+```{r}
+# plot solution 
+x <- res.nmds$points[,1]
+y <- res.nmds$points[,2]
+
+# plot
+plot(x, y, 
+     xlab="Coordinate 1", 
+     ylab="Coordinate 2", 
+     main="Nonmetric MDS", type="n")
+
+# add points
+points(x, y, 
+       cex = 0.8, pch=21, 
+       col="red", bg="yellow")
+
+# add text
+text(x+0.3, y-0.1, labels = row.names(dat), cex=.7)
+```

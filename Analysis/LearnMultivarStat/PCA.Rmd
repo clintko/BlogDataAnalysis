@@ -1,0 +1,110 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年5月3日"
+output: html_document
+---
+
+# Computing and visualizing PCA in R
+https://www.r-bloggers.com/computing-and-visualizing-pca-in-r/
+
+```{r}
+# Load data
+data(iris)
+head(iris, 3)
+```
+
+```{r}
+# log transform 
+log.ir <- log(iris[, 1:4])
+ir.species <- iris[, 5]
+ 
+# apply PCA - scale. = TRUE is highly 
+# advisable, but default is FALSE. 
+ir.pca <- prcomp(log.ir,
+                 center = TRUE,
+                 scale. = TRUE) 
+```
+
+```{r}
+# print method
+print(ir.pca)
+```
+
+Eigen
+```{r}
+# create matrix
+tmpMat1 <- cov(scale(log.ir))
+tmpMat2 <- cor(scale(log.ir))
+
+# Eigen: Covariance matrix
+tmpLst11 <- eigen(tmpMat)
+tmpLst12 <- svd(tmpMat)
+
+# Eigen: Correlation matrix
+tmpLst21 <- eigen(tmpMat)
+tmpLst22 <- svd(tmpMat)
+```
+
+compare
+```{r}
+#
+tmpLst11$values^0.5
+tmpLst12$d^0.5
+ir.pca$sdev
+
+# 
+tmpLst1$vectors
+tmpLst2$v
+tmpLst2$u
+ir.pca$rotation
+```
+
+```{r}
+# plot method
+plot(ir.pca, type = "l")
+```
+
+```{r}
+# summary method
+summary(ir.pca)
+```
+
+```{r}
+# Predict PCs
+predict(ir.pca, newdata=tail(log.ir, 2))
+```
+
+```{r}
+library(ggbiplot)
+g <- ggbiplot(ir.pca, obs.scale = 1, var.scale = 1, 
+              groups = ir.species, ellipse = TRUE, 
+              circle = TRUE)
+g <- g + scale_color_discrete(name = '')
+g <- g + theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+print(g)
+```
+
+plot by myself
+```{r}
+tmp <- ir.pca$x[,1:2]
+plot(tmp[,1], tmp[,2])
+```
+
+https://gist.github.com/thigm85/7689508
+```{r}
+require(ggplot2)
+
+theta <- seq(0,2*pi,length.out = 100)
+circle <- data.frame(x = cos(theta), y = sin(theta))
+p <- ggplot(circle,aes(x,y)) + geom_path()
+
+loadings <- data.frame(ir.pca$rotation, 
+                       .names = row.names(ir.pca$rotation))
+p + geom_text(data=loadings, 
+              mapping=aes(x = PC1, y = PC2, label = .names, colour = .names)) +
+  coord_fixed(ratio=1) +
+  labs(x = "PC1", y = "PC2")
+```
+
