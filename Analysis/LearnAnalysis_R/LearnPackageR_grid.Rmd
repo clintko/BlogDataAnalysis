@@ -1,0 +1,32 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年5月7日"
+output: html_document
+---
+
+```{r}
+A <- c(1,5,6,7,9)
+B <- c(10,56,64,86,98)
+C <- c(2001,3333,5678,4345,5345)
+D <- c(13446,20336,24333,34345,42345)
+L <- c(20,34,45,55,67)
+M <- data.frame(L, A, B, C, D)
+
+library(ggplot2)
+x1 <- ggplot(M, aes(L, A,xmin=10,ymin=0)) + geom_point() + stat_smooth(method='lm')
+x2 <- ggplot(M, aes(L, B,xmin=10,ymin=0)) + geom_point() + stat_smooth(method='lm')
+x3 <- ggplot(M, aes(L, C,xmin=0,ymin=0)) + geom_point() + stat_smooth(method='lm')
+x4 <- ggplot(M, aes(L, D,xmin=0,ymin=0)) + geom_point() + stat_smooth(method='lm')
+
+x <- cbind(
+    rbind(ggplotGrob(x1), ggplotGrob(x2)),
+    rbind(ggplotGrob(x3), ggplotGrob(x4)))
+
+library(grid)
+grid.draw(x)
+
+
+
+```
+

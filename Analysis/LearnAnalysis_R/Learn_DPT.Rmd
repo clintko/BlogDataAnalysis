@@ -1,0 +1,83 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年5月9日"
+output: html_document
+---
+
+```{r}
+source('http://bioconductor.org/biocLite.R')
+biocLite('destiny')
+```
+
+```{r}
+library(destiny)
+library(ggplot2)
+library(GEOquery)
+```
+
+```{r}
+data(iris)
+dat <- iris[, -5]
+```
+
+```{r}
+data(guo)
+dat <- guo
+dat <- t(exprs(guo))
+head(dat)
+```
+
+```{r}
+dm <- DiffusionMap(dat)
+dpt <- DPT(dm)
+plot(dpt, pch = 20) # “pch” for prettier points
+```
+
+# test other data
+```{r}
+library(dplyr)
+install.packages("tidyr")
+library(tidyr)
+workdir <- "E:\\MEGA\\LAB\\LAB_JH\\Proj_EvoDevoPathway02\\labexp"
+filePathGSVA  <- file.path(workdir, "Data/GSVA")
+```
+
+```{r}
+resData <- read.delim(
+    file.path(
+        filePathGSVA, 
+        "GSVAData_GSE39897_DevoMmu_Perm100.txt"),
+    stringsAsFactors = FALSE)
+```
+
+create the matrix for PCA analysis
+```{r}
+# initialize
+tmp <- resData
+
+# Get the original scores and remove duplicate
+tmp <- tmp %>% 
+    filter(Type1 == "Original") %>% 
+    group_by(GeneSetName, Sample) %>%
+    summarise(Value = mean(Value)) %>%
+    filter(!grepl("Dauer", Sample)) # for celegan, filter out Dauer samples
+
+# set factor for spread
+tmp$Sample <- factor(
+    tmp$Sample,
+    levels=unique(pdat$DevoStage))
+
+# spread into matrix
+tmp <- tmp %>% spread(Sample, Value)
+
+# Arrange a matrix
+resMat <- tmp %>% as.data.frame %>% select(-GeneSetName)
+rownames(resMat) <- tmp$GeneSetName
+```
+
+```{r}
+dat <- resData
+dm <- Diffusion(dat)
+```
+

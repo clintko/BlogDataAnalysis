@@ -1,0 +1,116 @@
+---
+title: "Stat Eco HW 11 RDA & Variance Decomposition"
+author: "Kuei Yueh Ko"
+date: "2017年5月11日"
+output: html_document
+---
+
+# Set Environment
+import needed package
+```{r}
+library(ComplexHeatmap)
+library(knitr)
+```
+
+set directories
+```{r}
+workdir <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis"
+setwd(workdir)
+
+filePathData <- file.path(
+    workdir,
+    "Data/StatCompEcology/Copepod")
+```
+
+# Import data
+Read in the copepod data recorded in different stations and preprocess the data to find the dominant species. The final matrix is teh frequency matrix of dominant species in different stations 
+
+We import two dataset:  
+
+1. cop_density.txt
+    + copepod total density (number/m^3) recorded in each station
+2. copepod_composition.txt
+    + frequency of each copepod specie recorded in each station.
+3. copepodSPlist.txt
+    + Species names along the rows of data copepod_composition.txt
+
+**Note: Definition of dominant species:**
+
+* species >=2% of total composition in any cruise-station
+
+```{r}
+# intialize a list to store data
+datCPOD <- list()
+
+# read tables: number of copepod in each station
+# 34 stations
+dat <- read.table(file.path(
+    filePathData, "cop_density.txt"), 
+    header=T)
+datCPOD$Density <- dat
+
+# read tables: freq of copepod in each station
+# 34 stations x 181 species
+dat <- read.table(file.path(
+    filePathData, "copepod_composition.txt"), 
+    header=T)
+datCPOD$Compose <- dat
+
+# read tables: species name
+# 181 species
+dat <- read.table(file.path(
+    filePathData, "copepodSPlist.txt"),
+    sep="\t", header=F)
+datCPOD$SP_Total <- as.character(dat$V1)
+
+# Search for dominant species
+dat <- datCPOD$Compose
+temp <- apply(dat >= 2, 1, sum) 
+datCPOD$SP_Dominant <- which(temp > 0)
+
+# Extract the composition of dominant species
+dat <- datCPOD$Compose
+idx <- datCPOD$SP_Dominant 
+idn <- datCPOD$SP_Total
+dat <- dat[idx,]
+rownames(dat) <- idn[idx]
+
+# composition of dominant species
+# Note: transform the matrix since 
+# we are clustering on stations
+datCPOD$CompDmt <- t(dat)
+datCPOD$CompDmtScale <- scale(t(dat)) # scales the columns of a numeric matrix
+#head(datCPOD$CompDmtScale)
+```
+
+Visualize the data after preprocess (find the dominant species and scale the result data matrix)
+```{r}
+# Original data matrix of dominant species in different stations
+dat <- datCPOD$CompDmt
+ht1 <- Heatmap(
+    dat, column_title = "Before scaled...",
+    row_names_gp = gpar(fontsize = 10),
+    column_names_max_height=unit(15, "cm"),
+    column_names_gp = gpar(fontsize = 10),
+    cluster_rows=F, cluster_columns=F)
+
+# Scaled data matrix of dominant species in different stations
+dat <- datCPOD$CompDmtScale
+ht2 <- Heatmap(
+    dat, column_title = "After scaled...",
+    row_names_gp = gpar(fontsize = 10),
+    column_names_max_height=unit(15, "cm"),
+    column_names_gp = gpar(fontsize = 10),
+    cluster_rows=F, cluster_columns=F)
+
+# plot
+draw(ht1 + ht2, 
+     column_title = "Compare the data before/after scaled",
+     column_title_side = "bottom")
+```
+
+import environmental data
+```{r}
+datENV <- read.table(file.path(filePathData,"enviANDdensity.txt"))
+```
+
