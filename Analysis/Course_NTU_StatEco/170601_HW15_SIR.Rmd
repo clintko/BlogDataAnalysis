@@ -1,0 +1,412 @@
+---
+title: "170601_HW14_SIR"
+author: "Kuei Yueh Ko"
+date: "2017年6月8日"
+output: html_document
+---
+
+# set environment
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(gridExtra)
+```
+
+
+# Import and explore data
+observed data
+```{r}
+datObs <- data.frame(
+    Time=c(1, 2, 3.3, 4.3, 5.3, 6.3, 7.3, 
+           8.3, 9.3, 10.3, 11.3, 12.3, 13.3),
+    Obs=c(15.4, 28.03, 41.18, 46.2, 48.23, 50.26, 
+           51.82,54.27,56.98,58.93,59,60.91,61.83))
+```
+
+plot the data
+```{r}
+# points
+plot(datObs$Time, datObs$Obs,
+     main="Female Fish Size over Time",
+     xlab="Time",ylab="Size",
+     pch=20,
+     ylim=c(-5,70),
+     xlim=c(-1,15))
+
+# coordinates
+abline(v=0,h=0,col="grey50")
+```
+
+# von Bertalanffy Growth Model
+Here we set population model using exponential function.
+
+VBGF model  
+- Linf: the asymptotic average length  
+- K: growth rate  
+- t0: the time or age when the average length was zero  
+
+VBGF model function
+```{r}
+# model function
+modelVBGF <- function(tt, Linf, K, t0){
+    res <- Linf * (1 - exp(-K * (tt-t0)))
+    return(res)
+} # end func
+
+# get model values
+getPred <- function(data, par){
+    pred = modelVBGF(
+        tt   = data$Time, 
+        Linf = par[1], 
+        K    = par[2], 
+        t0   = par[3])
+    return(pred)
+} # end func 
+```
+
+# Likelihood of log-normal distribution
+Here we assume the error of values follows the log-normal distribution.
+
+likelihood function for log normal
+```{r}
+getLL <- function(obs, pred, sig){
+    dev2 <- (log(obs/pred))^2
+    res  <- 1/obs * 
+        (1/sqrt(2*pi*sig*sig)) * 
+        exp(-dev2/(2*sig*sig))
+    return(res)
+} # end func getLike2
+```
+
+likelihood of the data
+```{r}
+getLLDat <- function(data, par){
+    # data
+    # - Time
+    # - Num
+    # ==========================
+    # prediction
+    pred = getPred(data, par)
+    
+    # calculate sd
+    obs  = data$Obs
+    dev2 = (log(obs/pred))^2
+    sig  = sqrt(sum(dev2))
+    
+    # arrange observed and predicted values
+    tmp <- cbind(obs,pred)
+    LL <- apply(tmp, 1, function(x){
+        getLL(obs=x[1], pred=x[2], sig)
+    })
+    NLL <- -log(LL)
+    
+    # store the results
+    Outs <- list()
+    Outs$Pred  <- pred
+    Outs$Obs   <- obs
+    Outs$Dev2  <- dev2
+    Outs$Sigma <- sig
+    Outs$LL    <- LL
+    Outs$NLL   <- NLL
+    Outs$T_LL  <- prod(LL)
+    Outs$T_NLL <- sum(NLL)
+    return(Outs)
+} # end 
+```
+
+object function for optimization
+```{r}
+obj_func <- function(data, par, echo=F){
+    res <- getLLDat(data, par)
+    if (echo){print(c(par,res$T_NLL))}
+    return(res$T_NLL)
+}
+```
+
+Note that There are local minimum in many regions. In this homework we do not need to worry about it which initial values to perform MLE. However, we need to locate a region for parameter space
+```{r}
+res <- optim(
+    par=c(60, 0.0001, -10), 
+    obj_func,
+    data=datObs,
+    echo=T,
+    
+    # Linf, K, t0
+    lower = c(  1, 0.0001, -0.5), 
+    upper = c(100,      1,  0.5),
+    method = "L-BFGS-B")
+```
+
+the result of MLE  
+* Linf ~ 60  
+* K    ~ 0.33  
+* t0   ~ 0.09  
+* NLL ~ 33.3607  
+* LL  ~ exp(-33.3607)
+
+plot the result of MLE
+```{r}
+# model predicted values
+vecTime=seq(-1, 20, by=0.1)
+tmp <- modelVBGF(
+    vecTime, 
+    res$par[1], res$par[2], res$par[3])
+
+# plot predicted values
+plot(vecTime, tmp,
+     main="von Bertalanffy Growth Model",
+     xlab="Time",ylab="Size",
+     ylim=c(-20,70),
+     type = "l")
+
+# coordinates
+abline(v=0,h=0,col="grey50")
+
+# plot the observed data
+points(datObs$Time, datObs$Obs, pch=20, col="red")
+```
+
+# Bayesian Analysis
+we first need to define the ranges of each parameter
+
+Linf should be positive, but should not be too large. Here we will set the Linf in range(1,100)
+
+K is the growth rate and hence should be positive. The size of fish reaches faster to Linf when K is larger. We can see the effect of K from following plot. Here we will set k in range(0.01, 1.0)
+```{r}
+# plot observe data
+plot(datObs$Time, datObs$Obs, 
+     pch=20, col="red",
+     xlim=c(-1,15),
+     ylim=c(-5, 70))
+
+# model predicted values
+vecTime = seq(-1, 20, by=0.1)
+K = seq(0.01, 1.0, by=0.05)
+
+# show each model
+for (k in K){
+    tmp <- modelVBGF(
+        vecTime, 
+        res$par[1], # Linf
+        k,          # K
+        res$par[3]) # t0
+    lines(vecTime, tmp, col="grey80")
+} # end func
+
+# coordinates
+abline(v=0,h=0,col="grey50")
+```
+
+For t0, the value can be negative or positive. However, it must be smaller than the first time point (age = 1). The value is very small compare to Linf and K. Here we assume in fall in the range(-0.5, 0.5)
+
+### Define Prior
+choose your prior
+```{r}
+# prior with uniform probability generator
+LPrior <- function(x){
+    dunif(x, min=1,    max=100)
+}
+
+KPrior <- function(x){
+    dunif(x, min=0.01, max=1.0)
+}
+
+TPrior <- function(x){
+    dunif(x, min=-0.5, max=0.5)
+}
+```
+
+ranges of each parameters
+```{r}
+LStep <- 5
+KStep <- 0.05
+TStep <- 0.05
+
+Linf <- seq(1,    100, by=LStep)
+K    <- seq(0.01, 1.0, by=KStep)
+T0   <- seq(-0.5, 0.5, by=TStep)
+```
+
+create all combinations using function expand.grid
+```{r}
+matComb <- do.call(
+    expand.grid,
+    list(Linf, K, T0)) 
+colnames(matComb) <- c("Linf", "K", "T0")
+```
+
+### Estimate Posterior: Grid Method
+```{r}
+# calculate likelihood for all combinations
+mat <- matComb
+mat$LL <- apply(mat, 1, function(x){
+    res <- getLLDat(datObs, x)$T_LL *
+        LPrior(x[1]) * 
+        KPrior(x[2]) * 
+        TPrior(x[3])
+    return(res)})
+
+# grid method to get probability
+mat$Prob <- mat$LL/sum(mat$LL)
+```
+
+to show the distribution let's fix one parameters
+```{r}
+dat <- mat %>% filter(T0 < 0.15) %>% filter(T0 > 0.05)
+unique(dat$T0) # 0.05
+```
+
+plot with heatmap (0.1, 0.01 => -1, -2 => 1, 2)
+```{r}
+gp <- ggplot(dat, aes(x=K, y=Linf, fill=log10(Prob)))
+gp <- gp + 
+    geom_tile() + 
+    scale_y_reverse() +
+    theme_bw() +
+    ggtitle("Linf vs K (T0 ~ 0.1)") +
+    theme(plot.title = element_text(
+        size  = 20,
+        face  = "bold", 
+        hjust = 0.5))
+print(gp)
+```
+
+plot with heatmap
+```{r}
+dat <- mat
+gp <- ggplot(dat, aes(x=K, y=Linf, fill=log10(Prob)))
+gp <- gp + 
+    geom_tile() + 
+    scale_y_reverse() +
+    theme_bw() +
+    ggtitle("Linf vs K (T0 ~ 0.1)") +
+    theme(
+        plot.title = element_text(
+            size  = 20,
+            face  = "bold", 
+            hjust = 0.5),
+        axis.title = element_text(
+            face="bold")) +
+        facet_wrap(~T0, ncol = 5)
+    
+print(gp)
+```
+
+get marginal
+```{r}
+lst <- list()
+lst$datL <- mat %>% 
+    group_by(Linf) %>% 
+    summarise(Marginal=sum(Prob)) %>%
+    rename(Value = Linf) %>%
+    mutate(Var = "Linf")
+lst$datK <- mat %>% 
+    group_by(K) %>% 
+    summarise(Marginal=sum(Prob)) %>%
+    rename(Value = K) %>%
+    mutate(Var = "K")
+lst$datT <- mat %>% 
+    group_by(T0) %>% 
+    summarise(Marginal=sum(Prob)) %>%
+    rename(Value = T0) %>%
+    mutate(Var = "T0")
+dat <- do.call("rbind", lst)
+```
+
+plot the marginal probabiliry of variables
+```{r}
+par(mfrow=c(1,3))
+barplot(-log10(lst$datL$Marginal), 
+        main="Linf", 
+        ylab="-log10(Prob)")
+barplot(-log10(lst$datK$Marginal), 
+        main="K")
+barplot(-log10(lst$datT$Marginal), 
+        main="T0")
+par(mfrow=c(1,1))
+```
+
+### Estimate Posterior: SIR Method
+uniform number generator
+```{r}
+genL <- function(x){
+    runif(x, min=1, max=100)
+} # end func
+
+genK <- function(x){
+    runif(x, min=0.01, max=1.0)
+} # end func
+
+genT <- function(x){
+    runif(x, min=-0.5, max=0.5)
+} # end func
+```
+
+draw numbers
+```{r}
+nDraw <- 10000
+
+# column 1,2,3 = L, K, T0
+mat <- rbind(genL(nDraw), genK(nDraw), genT(nDraw))
+
+# column 4
+# => likelihood of the data with selected parameters
+mat <- rbind(
+    mat, 
+    apply(mat, 2, function(x){
+        getLLDat(datObs, x)$"T_LL"
+    }))
+
+# column 5 U[0,1]
+mat <- rbind(mat,runif(nDraw,min=0, max=1))
+
+# assign column names
+rownames(mat) <- c(
+    "Linf", "K", "T0", 
+    "LL", "U[0-1]")
+```
+
+decide accept or reject
+```{r}
+dat <- as.data.frame(t(mat))
+dat$isAccepted <- dat$LL/exp(-33.3607)*10^10 > dat$`U[0-1]`
+table(dat$isAccepted)
+```
+
+plot the result
+```{r}
+tmp <- dat 
+tmp$T0 <- round(tmp$T0, 1)
+
+gp <- ggplot(tmp, aes(x=K, y=Linf, color=isAccepted))
+gp <- gp + 
+    geom_point() + 
+    scale_y_reverse() +
+    theme_bw() +
+    ggtitle("Linf vs K (T0 ~ 0.1)") +
+    theme(
+        plot.title = element_text(
+            size  = 20,
+            face  = "bold", 
+            hjust = 0.5),
+        axis.title = element_text(
+            face="bold")) +
+        facet_wrap(~T0, ncol = 5)
+    
+print(gp)
+```
+
+
+plot the marginal probability of variables
+```{r}
+# filter out the rejected points 
+tmp <- dat %>% filter(isAccepted)
+
+# plot
+par(mfrow=c(1,3))
+hist(tmp$Linf, main="Linf", ylab="Count")
+hist(tmp$K,    main="K",    ylab="Count")
+hist(tmp$T0,   main="T0",   ylab="Count")
+par(mfrow=c(1,1))
+```

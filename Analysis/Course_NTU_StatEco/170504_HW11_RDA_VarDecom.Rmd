@@ -10,6 +10,9 @@ import needed package
 ```{r}
 library(ComplexHeatmap)
 library(knitr)
+library(dplyr)
+library(tidyr)
+library(vegan)
 ```
 
 set directories
@@ -111,6 +114,140 @@ draw(ht1 + ht2,
 
 import environmental data
 ```{r}
-datENV <- read.table(file.path(filePathData,"enviANDdensity.txt"))
+datENV <- read.table(file.path(
+    filePathData,
+    "enviANDdensity.txt"),
+    header=T,
+    stringsAsFactors = FALSE)
+```
+
+# Redundant Analysis (RDA)
+Perform RDA analysis   
+    - Constrained:   Rank=11  
+    - Unconstrained: Rank=22  
+
+```{r}
+dat1 <- datCPOD$CompDmtScale
+dat2 <- datENV[,-1]
+resRDA <- rda(dat1~., dat2)
+print(resRDA)
+```
+
+WA & LC scores
+```{r}
+# set plot
+par(mfrow=c(1,2))
+
+# plot
+plot(resRDA, display="lc", main="LC scores")
+plot(resRDA, display="wa", main="WA scores")
+
+# reset plot
+par(mfrow=c(1,1))
+```
+
+If environmental variables correlate with species data, WA and LC 
+scores should resemble each other
+```{r}
+spenvcor(resRDA)
+```
+
+It turns out that the correlation is quite high. This can be observed in the plot of WA and LC scores (similar distribution of stations)
+```{r}
+plot(resRDA, dis=c("wa","lc"))
+#      RDA1      RDA2      RDA3      RDA4
+# 0.9652628 0.8890507 0.8841969 0.8668161
+    
+```
+
+We can plot the correlation of environment variables and species variables
+```{r}
+scoreLC <- scores(resRDA, display="lc", choice=c(1:5))
+scoreWA <- scores(resRDA, display="wa", choice=c(1:5))
+mat <- cor(scoreLC, scoreWA)
+Heatmap(
+    mat,
+    row_names_gp = gpar(fontsize = 15),
+    column_names_max_height=unit(15, "cm"),
+    column_names_gp = gpar(fontsize = 15),
+    cluster_rows=F, cluster_columns=F)
+```
+
+biplot using scaling=3
+```{r}
+ordiplot(resRDA, type="text", scaling=3)
+```
+
+# CCA analysis
+```{r}
+dat1 <- datCPOD$CompDmt
+dat2 <- datENV[,-1]
+resCCA <- cca(dat1~., dat2)
+print(resCCA)
+```
+
+```{r}
+plot(resCCA, scaling=3,
+     xlim=c(-4,4),
+     ylim=c(-2,2))
+```
+
+
+# Variance Decomposition
+```{r}
+dat <- datCPOD$CompDmtScale
+datEnv     <- datENV[, -1]
+```
+
+```{r}
+# set factors
+idn <- names(datENV)
+idnPhys <- idn[2:10]
+idnBio  <- idn[11:12] 
+
+# biological factors
+formP <- formula(paste("dat ~", paste(idnPhys, collapse = " + ")))
+
+# physical factors
+formB <- formula(paste("dat ~", paste(idnBio , collapse = " + ")))
+
+# biological factors condition on physical factors
+formPB <- formula(
+    paste("dat ~", 
+              paste(idnPhys, collapse = " + "),
+          "+ Condition(", 
+              paste(idnBio, collapse = " + "), 
+          ")"))
+
+# physical factors condition on biological factors
+formBP <- formula(
+    paste("dat ~", 
+              paste(idnBio, collapse = " + "),
+          "+ Condition(", 
+              paste(idnPhys, collapse = " + "), 
+          ")"))
+```
+
+perform RDA using different type of variance decomposition
+```{r}
+resRDA <- list()
+resRDA$Tot  <- rda(dat~., datEnv)
+resRDA$Phys <- rda(formP, datEnv)
+resRDA$Bio  <- rda(formB, datEnv)
+resRDA$PB   <- rda(formPB, datEnv)
+resRDA$BP   <- rda(formBP, datEnv)
+```
+
+plot the results
+```{r}
+ordiplot(resRDA$Tot,  type="text", scaling=3, main="Total")
+ordiplot(resRDA$Phys, type="text", scaling=3, 
+         main="Physical Factors")
+ordiplot(resRDA$PB,   type="text", scaling=3, 
+         main="Physical Factors Conditional on Biological Factors")
+ordiplot(resRDA$Bio,  type="text", scaling=3, 
+         main="Biological Factors")
+ordiplot(resRDA$BP,   type="text", scaling=3, 
+         main="Biological Factors Conditional on Physical Factors")
 ```
 

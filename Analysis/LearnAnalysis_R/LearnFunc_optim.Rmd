@@ -1,0 +1,57 @@
+---
+title: "LearnR_optim"
+author: "Kuei Yueh Ko"
+date: "2017年5月17日"
+output: html_document
+---
+
+# how to use optim in R
+https://www.r-bloggers.com/how-to-use-optim-in-r/
+
+```{r}
+dat=data.frame(
+    x=c(1,2,3,4,5,6), 
+    y=c(1,3,5,6,8,12))
+```
+
+function that result the value you want to minimize
+```{r}
+min.RSS <- function(data, par) {
+    with(data, sum((par[1] + par[2] * x - y)^2))
+} # end func
+```
+
+```{r}
+result <- optim(
+    # intialize the parameter
+    par = c(0, 1), 
+    # function that return the value you want to minimize
+    min.RSS, 
+    # assign default parameter
+    data = dat)
+```
+
+```{r}
+result$par
+result$value
+```
+
+# my example
+```{r}
+d <- 2
+
+parabolla <- function(x, degree){
+    return(
+        (x[1]-3)^degree +
+        (x[2]-4)^degree)
+}
+```
+
+
+```{r}
+result <- optim(
+    par = c(10, 10),
+    parabolla,
+    degree = d)
+```
+

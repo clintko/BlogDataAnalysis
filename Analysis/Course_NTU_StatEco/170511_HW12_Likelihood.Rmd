@@ -1,0 +1,595 @@
+---
+title: "170511_HW12_Likelihood"
+author: "Kuei Yueh Ko"
+date: "2017年5月17日"
+output: html_document
+---
+
+# Part 1 loading data
+```{r}
+Age = c(
+    1,2,3.3,4.3,5.3,
+    6.3,7.3,8.3,9.3,10.3,
+    11.3,12.3,13.3)
+Length = c(
+    15.4,28.03,41.18,46.2,48.23,
+    50.26,51.82,54.27,56.98,58.93,
+    59,60.91,61.83)
+```
+
+# part 2:  VBGF growth function
+VBGF function
+```{r}
+VBGF <- function(Linf, K, t0, data=Age){
+    res <- Linf * (1 - exp(-1 * K *(data-t0)))
+    return(res)
+}
+```
+
+likelihood of VBGF function
+```{r}
+lognormal_like = function(Linf,K,t0,Out=F){
+    # initiation
+    Like = 0 # likelihood
+    NLL = 0  # Negative Log Likelihood
+    
+    # VBGF function
+    ypred = VBGF(Linf,K,t0)
+    
+    # convert residual to N(0, sigma2)
+    ## y = x * exp(error) => error = log(y / x)
+    ## error ~ N(0, sigma2)
+    Dev2 =(log(Length/ypred))^2
+    sigma = sqrt(mean(Dev2)) # sum the residual error
+
+    # loop
+    for (i in 1:length(Age)){
+        Like[i] = 1/Length[i] * 
+            1/sqrt(2*pi*sigma) * 
+            exp(-Dev2[i]/(2*sigma*sigma))
+        NLL[i] = -log(Like[i])
+    } # end for loop
+ 
+    # Echo if Out = True
+    if(Out==T) cat(sum(NLL),Linf,K,t0,"\n")
+ 
+    # store the results
+    Outs <- NULL
+    Outs$Pred <- ypred
+    Outs$Length <- Length
+    Outs$Dev2 <- Dev2
+    Outs$sigma <- sigma
+    Outs$Like <- Like
+    Outs$NLL <- NLL 
+    Outs$Obj <- sum(NLL)
+    return(Outs)
+ }
+```
+
+```{r}
+obj_function = function(theda,Out=F){ 
+    Linf = theda[1]
+    K = theda[2]
+    t0 = theda[3]
+    Outs <- lognormal_like(theda[1], theda[2], theda[3],Out)
+    obj <- Outs$Obj 
+    return(obj) 
+}
+```
+
+```{r}
+Model = optim(hessian = T)
+solve(Model$hessian)
+sqrt(solve(Model$hession))
+```
+
+```{r}
+result <- optim(
+    par=c(100,10,-1), 
+    obj_function)
+result$par
+```
+
+# show the result
+arrange the results
+```{r}
+dat = data.frame(x=Age,y=Length)
+dat$ypred = VBGF(
+    #dat$x,
+    L  = result$par[1],
+    K  = result$par[2],
+    t0 = result$par[3])
+```
+
+plot the results
+```{r}
+plot(dat$x, dat$ypred),
+     col="red", type="l",
+     xlab="Length", ylab="Age",
+     ylim=c(
+         range(dat$y)[1]*0.8,
+         range(dat$y)[2]*1.2))
+
+points(dat$x, dat$y,
+     col="blue", pch=20, cex=0.8,
+     xlab="Length", ylab="Age")
+```
+
+```{r}
+# part 1 loading data
+ 
+ 
+ # part 2 
+ # VBGF growth function
+ 
+ VBGF <-function(Linf, K, t0){
+ y = 
+ return(y)
+ }
+ 
+ lognormal_like = function(Linf,K,t0,Out){
+ 
+ Like = 0
+ NLL = 0
+ ypred = VBGF(Linf,K,t0)
+ Dev2 =(log(Length/ypred))^2
+ sigma = sqrt(mean(Dev2))
+
+ for (i in 1:length(Age)){
+ Like[i] = 
+ NLL[i] = 
+ }
+ 
+ if(Out==T) cat(sum(NLL),Linf,K,t0,"\n")
+ Outs <- NULL
+ Outs$Pred <- ypred
+ Outs$Length <- Length
+ Outs$Dev2 <- Dev2
+ Outs$sigma <- sigma
+ Outs$Like <- Like
+ Outs$NLL <- NLL 
+ Outs$Obj <- sum(NLL)
+ return(Outs)
+ }
+  
+ lognormal_like(Linf=100,K=0.2,t0=0,Out=T)
+ 
+ 
+ obj_function = function(theda,Out=F){ 
+ Linf =  
+ K = 
+ t0 = 
+ Outs <- lognormal_like(theda[1], theda[2], theda[3],Out)
+ obj <- Outs$Obj 
+ return(obj) 
+ }
+
+ 
+ Model = optim()
+ Model = optim()
+  
+ # Print the likelihood value and predicted value based on the MLE estimates  
+ pars <- Model$par
+ Model_output <- lognormal_like(pars[1],pars[2],pars[3],Out=T)
+ print(Model1Out)
+ 
+ # standard error
+ sqrt(solve(Model$hessian))
+ 
+
+```
+
+---------------------------------------
+
+
+# fit log normal
+```{r}
+myMLE <- function(par, data) {
+    #parameters
+    mu <- par[1]
+    sigma <- par[2]
+    #
+    R = dnorm(data, mu, sigma)
+    res = -sum(log(R))
+    return(res)
+}
+```
+
+```{r}
+myMLE2 <- function(par, data) {
+    #parameters
+    mu <- par[1]
+    sigma <- par[2]
+    #
+    R = dlnorm(data, mu, sigma)
+    res = -sum(log(R))
+    return(res)
+}
+```
+
+```{r}
+x <- rlnorm(100, meanlog=3, sdlog=1)
+
+result <- optim(par=c(1,1), 
+      myMLE2, 
+      data=x,
+      method="L-BFGS-B",
+      lower=c(-Inf,0))
+print(result$par)
+```
+
+```{r}
+x <- rlnorm(100, meanlog=3, sdlog=1)
+
+result <- optim(par=c(1,1), 
+      myMLE, 
+      data=log(x),
+      method="L-BFGS-B",
+      lower=c(-Inf,0))
+print(result$par)
+```
+
+# fit another normal
+```{r}
+myFunc <- function(par, data){
+    # parameters
+    mu = par[1]
+    s  = par[2]
+    
+    #
+    x  = data$x # time points
+    y  = data$y # observation
+    
+    #
+    res = myMLE(c(mu, s), y-x)
+    return(res)
+}
+```
+
+```{r}
+x <- seq(0,10,by=0.1)
+y <- x + rnorm(length(x), mean=5, sd=2)
+```
+
+```{r}
+dat <- data.frame(x=x,y=y)
+result <- optim(
+    par=c(1,1), 
+    myFunc, 
+    data=dat,
+    method="L-BFGS-B",
+    lower=c(-Inf,0))
+print(result$par)
+```
+
+# fit another log normal
+```{r}
+myFunc <- function(par, data){
+    # parameters
+    mu = par[1]
+    s  = par[2]
+    
+    #
+    x  = log(data$x) # time points
+    y  = log(data$y) # observation
+    
+    #
+    res = myMLE(c(mu, s), y-x)
+    return(res)
+}
+```
+
+```{r}
+x <- seq(0.1,10,by=0.1)
+y <- x * exp(rnorm(length(x), mean=5, sd=2))
+```
+
+```{r}
+dat <- data.frame(x=x,y=y)
+result <- optim(
+    par=c(1,1), 
+    myFunc, 
+    data=dat,
+    method="L-BFGS-B",
+    lower=c(-Inf,0))
+print(result$par)
+```
+
+# fit complex log normal
+```{r}
+testFunc <- function(x, p1, p2){
+    res <- (x + p1)^p2
+    return(res)
+}
+```
+
+```{r}
+x <- seq(0.1,10,by=0.01)
+y <- testFunc(x, p1=5, p2=2) * exp(
+    rnorm(
+        length(x),
+        mean=0,
+        sd=5))
+```
+
+```{r}
+#plot(x, y, type="l", col="red")    
+#points(x, obs, pch=19, cex=0.5, col="blue")
+
+#plot(x, log(y), type="l", col="red")    
+#points(x, log(obs), pch=19, cex=0.5, col="blue")
+```
+
+```{r}
+myFunc <- function(par, data){
+    # parameters
+    p1 = par[1]
+    p2 = par[2]
+    mu = par[3]
+    s  = par[4]
+    
+    #
+    x  = data$x # time points
+    x2 = log(testFunc(x, p1, p2))
+    y  = log(data$y) # observation
+    
+    #
+    res = myMLE(c(mu, s), y-x2)
+    return(res)
+}
+```
+
+```{r}
+dat = data.frame(x=x,y=y)
+result <- optim(
+    par=c(1,2,0,1), 
+    myFunc, 
+    data=dat)
+print(result$par)
+```
+
+
+```{r}
+VBGF <- function(x, L, K, T0){
+    res <- L * (1 - exp(-1 * K *(x-T0)))
+    return(res)
+}
+```
+
+
+```{r}
+x <- rnorm(1000, mean = 1, sd = 2)
+
+neg.ll.v2 <- function(x, params) {
+    mu = params[1]
+    sigma = params[2]
+    -sum(dnorm(x, mean = mu, sd = sigma, log = TRUE))
+}
+
+opt1 <- optim(par = c(1, 1), fn = neg.ll.v2, x = obs)
+opt1$par
+```
+
+
+# 
+likelihood of normal distribution
+```{r}
+# negative log likelihood
+NLL_nor <- function(x, mu, sig2){
+    res <- 
+        1/2 * log(2 * pi) + 
+        1/2 * log(sig2) + 
+        1/2 * 1/sig2 * (x - mu)^2
+    return(res)
+}
+
+NLL_nor_mul <- function(obs, mu, sig2){
+    res <- sapply(obs, function(x){
+        NLL_nor(x, mu, sig2)
+    }) # end sapply
+    res <- sum(res)
+    return(res)
+}
+```
+
+try NLL_nor
+```{r}
+x <- seq(-2, 2, by=0.1)
+mu <- 0
+sig2 <- 1
+```
+
+```{r}
+p <- dnorm(x, mean = mu, sd = sig2)
+```
+
+```{r}
+plot(x, p)
+plot(x, -log(p))
+plot(x, NLL_nor(x, mu, sig2))
+```
+
+
+###
+```{r}
+obs <- c(5, 10, 11, 15)
+obs <- rnorm(100, mean=10, sd=20)
+mu <- mean(obs)
+sig2 <- sd(obs)^2
+1/4 * sum((obs - mu)^2)
+```
+
+```{r}
+myFunc <- function(par, data){
+    # parameters
+    mu <- par[1]
+    sig2 <- par[2]
+    
+    # negative log likelihood
+    res <- sapply(data, function(x){
+        NLL_nor(x, mu, sig2)
+        #-log(dnorm(x, mean=mu, sd=sig2^0.5))
+    })
+    
+    # sum the NLL
+    res <- sum(res)
+    return(res)
+}
+```
+
+```{r}
+result <- optim(
+    par = c(mu, sig2),
+    myFunc,
+    data=obs,
+    lower=c(-Inf,0))
+```
+
+```{r}
+print(result$par)
+print(c(mu, sig2))
+```
+
+
+# 
+```{r}
+VBGF <- function(x, L, K, T0){
+    res <- L * (1 - exp(-1 * K *(x-T0)))
+    return(res)
+}
+```
+
+```{r}
+L = 10
+K = 1
+T0 = -1
+
+x <- seq(-2, 5, by=0.1)
+y <- VBGF(x, L, K, T0)
+
+plot(x,y,type="l",ylim=c(-20, 15))
+points(x,y,pch=19,cex=0.5)
+abline(v=0)
+abline(h=0)
+```
+
+
+#
+```{r}
+L = 10
+K = 1
+T0 = -1
+
+x <- sort(sample(seq(-2, 5, by=0.01), 100))
+y <- VBGF(x, L, K, T0)
+obs <- VBGF(x, L, K, T0) * exp(rnorm(length(x)))
+
+plot(x, y, type="l",
+    col="red",
+    ylim=c(-15, 20))
+points(x, obs,
+    col="blue",
+    pch=19, cex=0.5)
+abline(v=0)
+abline(h=0)
+```
+
+```{r}
+plot(x, obs, 
+     pch=19, cex=0.5,
+     xlim=c(-2, 5),
+     ylim=c(-20, 15))
+```
+
+
+```{r}
+plot(log(y), log(obs), 
+     pch=19, cex=0.5)
+abline(lm(log(obs) ~ log(y)))
+```
+
+# Testing
+
+```{r}
+myFunc <- function(par, data){
+    # parameters
+    L    <- par[1]
+    K    <- par[2]
+    T0   <- par[3]
+    sig  <- par[4]
+    
+    # data
+    y <- log(data$y)
+    x <- data$x
+    x2 <- log(VBGF(x, L, K, T0))
+    
+    # likelihood
+    res <- mapply(function(yi, xi){
+        #tmp <- NLL_nor(yi, xi, sig2)
+        tmp <- -1 * dnorm(yi, mean=xi, sd=sig, log = T)
+        return(tmp)
+    }, y, x2)
+    res <- sum(res)
+    return(res)
+}
+```
+
+```{r}
+L = 10
+K = 1
+T0 = -1
+sig = 0.01
+
+#x <- sort(sample(seq(0.01, 2, by=0.01), 5))
+x <- seq(-2, 2, by=0.01)
+y <- VBGF(x, L, K, T0)
+
+dat <- data.frame(
+    x = x,
+    y = VBGF(x, L, K, T0) * 
+        exp(rnorm(
+                length(x), 
+                mean=0, 
+                sd=sig)))
+plot(x,log(y))
+plot(x,log(dat$y))
+#plot(x, dat$x, type="l", col="red")
+#points(x, dat$y, pch=19, cex=0.5, col="blue")
+
+result <- optim(
+    par=c(1,1,-1,1),
+    myFunc,
+    data=dat)
+
+print(result$par)
+print(c(L, K, T0, sig^2))
+```
+
+
+#
+
+
+```{r}
+optim(
+    par=c(0,0,0,1),
+    myFunc,
+    data=)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,106 @@
+---
+title: "170511_HW12"
+author: "Kuei Yueh Ko"
+date: "2017年5月18日"
+output: html_document
+---
+
+# Part 1: loading data
+```{r}
+Age = c(
+    1,2,3.3,4.3,5.3,
+    6.3,7.3,8.3,9.3,10.3,
+    11.3,12.3,13.3)
+Length = c(
+    15.4,28.03,41.18,46.2,48.23,
+    50.26,51.82,54.27,56.98,58.93,
+    59,60.91,61.83)
+```
+
+# part 2:  VBGF growth function
+VBGF function
+```{r}
+VBGF <- function(x, L, K, t0){
+    res <- L * (1 - exp(-1 * K *(x-t0)))
+    return(res)
+}
+```
+
+# part 3: Likelihood
+```{r}
+myMLE <- function(par, data) {
+    #parameters
+    mu    <- par[1] # mean
+    sigma <- par[2] # standard deviation
+    
+    # calculate likelihood
+    R = dnorm(data, mu, sigma) # pdf of normal distr.
+    res = -sum(log(R)) # NLL
+    return(res)
+} # end func myMLE
+```
+
+# Perform MLE
+```{r}
+myFunc <- function(par, data, isOut=T){
+    # parameters
+    L    <- par[1]
+    K    <- par[2]
+    t0   <- par[3] 
+    sig  <- par[4] # standard deviation of error
+    
+    # data
+    x     <- data$x
+    y     <- data$y
+    ypred <- VBGF(x, L, K, t0)
+    
+    #Dev2 = (log(Length/ypred))^2
+    #sig = sqrt(mean(Dev2)) # sum the residual error
+    
+    # Calculate likelihood
+    ## y = x * exp(error) => error = log(y / x)
+    ## error ~ N(0, sigma2)
+    res <- myMLE(c(0, sig), log(y/ypred))
+    if (isOut){print(res)}
+
+    return(res)
+}
+```
+
+```{r}
+# arrange data
+dat = data.frame(x=Age,y=Length)
+
+# MLE
+result <- optim(
+    par=c(1,2,0,1), 
+    myFunc, 
+    data=dat)
+print(result$par)
+```
+
+# show the result
+arrange the results
+```{r}
+dat = data.frame(x=Age,y=Length)
+dat$ypred = VBGF(
+    dat$x,
+    L  = result$par[1],
+    K  = result$par[2],
+    t0 = result$par[3])
+```
+
+plot the results
+```{r}
+plot(dat$x, dat$ypred,
+     col="red", type="l",
+     xlab="Length", ylab="Age",
+     ylim=c(
+         range(dat$y)[1]*0.8,
+         range(dat$y)[2]*1.2))
+
+points(dat$x, dat$y,
+     col="blue", pch=20, cex=0.8,
+     xlab="Length", ylab="Age")
+```
+
