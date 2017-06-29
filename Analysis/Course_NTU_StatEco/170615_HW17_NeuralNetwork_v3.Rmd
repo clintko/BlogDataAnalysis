@@ -1,0 +1,316 @@
+---
+title: "170615_HW17_NeuralNetwork_v3"
+author: "Kuei Yueh Ko"
+date: "2017年6月22日"
+output: html_document
+---
+
+# set environment
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+# set working functions
+### activation function
+```{r}
+# activation function
+Sig <- function(x){
+    res <- tanh(x)
+    res <- as.matrix(res)
+    return(res)
+} # end func
+
+# derivative of activation function
+dSig <- function(x){
+    res <- 1 - tanh(x)^2
+    res <- as.matrix(res)
+    return(res)
+} # end func
+```
+
+### forward propagation
+loss function: sum of squares of error
+```{r}
+LossFunc <- function(Dobs,Dhat){
+    # D : N2 x n
+    #   : each row is a variable
+    #   : each column is an observation
+    # Dobs : observed data
+    # Dhat : estimation
+    # Return:
+    #     return the trace{t(Dobs-Dhat)(Dobs-Dhat)}
+    #################
+    # assert
+    stopifnot(dim(Dobs) == dim(Dhat))
+    
+    # 
+    res <- sapply(1:ncol(Dobs), function(idx){
+        res <- crossprod(Dobs[,idx]-Dhat[,idx])
+        return(as.numeric(res))
+    })
+    return(res)
+} # end func
+```
+
+forward propagation
+```{r}
+Forward <- function(X,Y,W1,W2,b1,b2,echo=FALSE){
+    # X  : data matrix (input)  ; n x N0
+    # Y  : data matrix (output) ; n x N2
+    # W1 : weight matrix ; N1 x N0
+    # W2 : weight matrix ; N2 x N1
+    #################
+    # check the dimention
+    stopifnot(nrow(X)  == nrow(Y))
+    stopifnot(ncol(X)  == ncol(W1)) # N0
+    stopifnot(nrow(W1) == ncol(W2)) # N1
+    stopifnot(ncol(Y)  == nrow(W2)) # N2
+    
+    # initialization
+    n  = nrow(X)
+    A0 = t(X)
+    Y2 = t(Y)
+    vecOne = as.matrix(rep(1,n))
+    
+    # calculation
+    if(echo){
+        cat(c("dim(W1 %*% A0)", dim(W1 %*% A0)))
+        cat("\n")
+        cat(c("dim(b1 %*% t(vecOne))", dim(b1 %*% t(vecOne))))
+        cat("\n")
+    } # end if
+    
+    Z1 = W1 %*% A0 + b1 %*% t(vecOne) # N1 x n
+    A1 = Sig(Z1)
+    Z2 = W2 %*% A1 + b2 %*% t(vecOne) # N2 x n
+    A2 = Sig(Z2)
+    
+    # store the results
+    res <- list()
+    res$A0 <- A0
+    res$A1 <- A1
+    res$A2 <- A2
+    res$Z1 <- Z1
+    res$Z2 <- Z2
+    res$E  <- LossFunc(A2,Y2)
+    res$MSE <- sum(res$E)
+    return(res)
+} # end func
+```
+
+### Backward Propagation
+```{r}
+GetGradient <- function(W1,W2,b1,b2,z1,z2,a0,a1,a2,y){
+    # check the dimention
+    ### 
+    stopifnot(nrow(W1) == ncol(W2))   # N1
+    ### a0,a1,a2
+    stopifnot(ncol(W1) == nrow(a0)) # N0
+    stopifnot(nrow(W1) == nrow(a1)) # N1
+    stopifnot(nrow(W2) == nrow(a2)) # N2
+    ### z1,z2
+    stopifnot(nrow(z1) == nrow(a1)) # N1
+    stopifnot(nrow(z2) == nrow(a2)) # N2
+    ### y
+    stopifnot(nrow(y)  == nrow(a2)) # N2
+    
+    # delta
+    delta2 <- (y-a2) * dSig(z2)
+    delta1 <- (t(W2) %*% delta2) * dSig(z1)
+    
+    # gradient
+    res <- list()
+    res$dEW2 <- delta2 %*% t(a1)
+    res$dEW1 <- delta1 %*% t(a0)
+    res$dEb2 <- delta2
+    res$dEb1 <- delta1
+    return(res)
+} # end func
+```
+
+```{r}
+Backward <- function(resF,W1,W2,b1,b2,Y,learnRate=0.001){
+    # initialization
+    resW1 <- W1
+    resW2 <- W2
+    resb1 <- b1
+    resb2 <- b2
+    n <- nrow(Y)
+
+    # loop through all points
+    for (idx in 1:n){
+        # extract
+        a0 <- resF$A0[,idx,drop=FALSE]
+        a1 <- resF$A1[,idx,drop=FALSE]
+        a2 <- resF$A2[,idx,drop=FALSE]
+        z1 <- resF$Z1[,idx,drop=FALSE]
+        z2 <- resF$Z2[,idx,drop=FALSE]
+        y  <- t(Y[idx,])
+    
+        # Backward(W1,W2,b1,b2,z1,z2,a0,a1,a2,y)
+        resG <- GetGradient(W1,W2,b1,b2,z1,z2,a0,a1,a2,y)
+        resW1 <- resW1 + resG$dEW1 * learnRate
+        resW2 <- resW2 + resG$dEW2 * learnRate
+        resb1 <- resb1 + resG$dEb1 * learnRate
+        resb2 <- resb2 + resG$dEb2 * learnRate
+    } # end for loop
+    
+    # store and return
+    res <- list()
+    res$W1 <- resW1
+    res$W2 <- resW2
+    res$b1 <- resb1
+    res$b2 <- resb2
+    return(res)
+} # end func
+```
+
+### Wrapper Function
+```{r}
+TrainNN <- function(dat, numTrain, iteration, N0=2, N1=5, N2=3){
+    # initiation
+    W1 <- matrix(runif(N1*N0,min=-1,max=1), nrow=N1, ncol=N0)  
+    W2 <- matrix(runif(N2*N1,min=-1,max=1), nrow=N2, ncol=N1)
+    b1 <- matrix(runif(N1,min=-1,max=1), nrow=N1, ncol=1)
+    b2 <- matrix(runif(N2,min=-1,max=1), nrow=N2, ncol=1)
+    res <- list()
+    res$MSE_Train <- c()
+    res$MSE_Test  <- c()
+    
+    # set index to seperate the training & testing dataset
+    numTotal <- nrow(dat)
+    idxTrain <- seq_len(numTrain)
+    idxTest  <- setdiff(
+        seq_len(numTotal), 
+        idxTrain)
+    
+    # extract an observation
+    X_Train <- dat[idxTrain, 1:2] 
+    Y_Train <- dat[idxTrain, 3:5] 
+    X_Test  <- dat[idxTest,  1:2] 
+    Y_Test  <- dat[idxTest,  3:5] 
+
+    # Train the neural network
+    for (dummyNum in 1:iteration){
+        # Forward (Test)
+        X <- X_Test
+        Y <- Y_Test
+        resF <- Forward(X,Y,W1,W2,b1,b2)
+        res[["MSE_Test"]] <- c(
+            res[["MSE_Test"]], 
+            resF[["MSE"]])
+    
+        # Forward (Train)
+        X <- X_Train
+        Y <- Y_Train
+        resF <- Forward(X,Y,W1,W2,b1,b2)
+        res[["MSE_Train"]] <- c(
+            res[["MSE_Train"]], 
+            resF[["MSE"]])
+    
+        # Backward (Train)
+        resB <- Backward(resF,W1,W2,b1,b2,Y)
+    
+        # update
+        W1  <- resB$W1
+        W2  <- resB$W2
+        b1  <- resB$b1
+        b2  <- resB$b2
+    } # end for loop
+    
+    # store and return
+    resF <- Forward(X,Y,W1,W2,b1,b2)
+    res$A0 <- resF$A0
+    res$A2 <- resF$A2
+    res$W1 <- W1
+    res$W2 <- W2
+    res$b1 <- b1
+    res$b2 <- b2
+    res$NumTotal  <- numTotal
+    res$NumTrain  <- numTrain
+    res$Iteration <- iteration
+    res$N0 <- N0
+    res$N1 <- N1
+    res$N2 <- N2
+    return(res)
+} # end func
+```
+
+# Import data
+```{r}
+filePathData <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis\\Data\\StatCompEcology"
+```
+
+```{r}
+# read data
+myDat <- read.delim(
+    file.path(
+        filePathData, 
+        "modeldata.txt"),
+    header=FALSE)
+colnames(myDat) <- c("X", "Y", "V1", "V2", "V3")
+
+# set color
+myDat$Color <- apply(myDat, 1, function(x){
+    if (x["V1"] == -1){
+        if (x["V2"] == -1){
+            return("grey20")
+        } else {
+            return("#61bbc2") # blue
+        } # end inner ifelse
+    } else {
+        return("#ff6f69") # red
+    } # end outer ifelse
+}) # end apply
+```
+
+Three type of output
+  V1 V2 V3
+1 -1 -1  1
+2 -1  1 -1
+3  1 -1 -1
+
+plot the data
+```{r}
+gp <- ggplot(myDat, aes(x=X, y=Y))
+gp <- gp +
+    geom_point(color=myDat$Color, size=2) +
+    theme_bw()
+print(gp)
+```
+
+
+
+Train the neural network
+```{r}
+# TrainNN(dat, numTrain, iteration, N0=2, N1=5, N2=3)
+idx <- sample(seq_len(nrow(myDat)))
+res <- TrainNN(myDat[idx,], 400, 100)
+```
+
+plot the MSE
+```{r}
+par(mar=c(5, 5, 4, 6) + 0.1)
+
+# Training MSE
+plot(res$MSE_Train, pch=20, axes=T, 
+     xlab="Index", 
+     ylab="MSE (Training)", 
+     cex=1.0, col="red")
+axis(2, ylim=range(res$MSE_Train))
+
+# Testing MSE
+par(new = T)
+plot(res$MSE_Test,  pch=20, axes=F, 
+     xlab=NA, ylab=NA, 
+     cex=0.5, col="blue")
+axis(4, ylim=range(res$MSE_Test))
+mtext("MSE (Testing)", side=4, line=3, las=3)
+```
+
+
+
+
+

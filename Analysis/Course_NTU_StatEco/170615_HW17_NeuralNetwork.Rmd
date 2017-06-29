@@ -1,0 +1,267 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年6月20日"
+output: html_document
+---
+
+trying code
+```{r}
+plot(tanh(-10:10))
+```
+
+```{r}
+x = c(1,2,3)
+y = c(1,2,3)
+x*y
+t(t(x))
+as.matrix(x)
+```
+
+```{r}
+X <- matrix(1, nrow=3,ncol=3)
+Y <- matrix(c(1,2,3))
+X %*% Y * Y
+```
+
+
+# set environment
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+
+# set working functions
+### activation function
+```{r}
+# activation function
+Sig <- function(x){
+    res <- tanh(x)
+    res <- as.matrix(res)
+    return(res)
+} # end func
+
+# derivative of activation function
+dSig <- function(x){
+    res <- 1 - tanh(x)^2
+    res <- as.matrix(res)
+    return(res)
+} # end func
+```
+
+### forward propagation
+loss function: sum of squares of error
+```{r}
+LossFunc <- function(Y,D){
+    e = t(D-Y) %*% (D-Y)
+    e = as.numeric(e)
+    return(e)
+} # end func
+```
+
+not tested yet, check matrix multiplication of vector instead of one column matrix
+```{r}
+Forward <- function(X,W,V){
+    # calculation
+    U = V %*% X
+    H = Sig(U)
+    H = rbind(1,H) # add bias term
+    S = W %*% H
+    Y = Sig(S)
+    
+    # store the results
+    res <- list()
+    # 1st Layer
+    res$U <- U
+    res$H <- H
+    # 2nd Layer
+    res$S <- S
+    res$Y <- Y
+    res$E <- lossFunc(Y,D)
+    return(res)
+} # end func
+```
+
+### backward propagation
+gradient
+```{r}
+dEW <- function(D,Y,S,H){
+    E = D-Y
+    res = (E * dSig(S)) %*% t(H) 
+    return(res)
+} # end func
+
+dEV <- function(D,Y,X,U,S,W){
+    E = D-Y
+    res = (t(W) %*% (E * dSig(S)) * dSig(U)) %*% t(X)
+    return(res)
+} # end func
+```
+
+
+```{r}
+Backward <- function(X,D,W,V,learnRate){
+    # calculate all the components
+    resF <- Forward(X,W,V)
+    U <- resF[["U"]]
+    H <- resF[["H"]]
+    S <- resF[["S"]]
+    Y <- resF[["Y"]]
+    
+    # Outer Layer
+    dW = dEW(Y,D,S,U)
+    
+    # Hidden Layer
+    dV = dEV(D,Y,X,U,S,W)
+    
+    # update weights
+    resB = list()
+    resB$W = W - learnRate * dW
+    resB$V = V - learnRate * dV
+    return(res)
+} # end func
+```
+
+### Wrapper Function
+```{r}
+Train <- function(X,D,numIter=100,learnRate=0.001) {
+    # dimension
+    N1 = nrow(X)
+    N3 = nrow(D)
+    
+    # initiation
+    X <- rbind(1,X) # add bias term
+    W <- matrix(1,nrow=N3,  ncol=N2+1)
+    V <- matrix(1,nrow=N2+1,ncol=N1+1)
+    resW <- list()
+    resV <- list()
+    resE <- list()
+    
+    # training the neural network
+    for (idx in seq_len(numIter)){
+        # Forward
+        resF <- Forward(X,W,V)
+        
+        # Backward
+        resB <- Backward(X,D,W,V,learnRate=learnRate)
+        W <- resB[["W"]]
+        V <- resB[["V"]]
+        
+        # record
+        resW[[idx]] <- resB[["W"]]
+        resV[[idx]] <- resB[["V"]]
+        resE[[idx]] <- resF[["E"]]
+    } # end loop
+    
+    # store result
+    res <- list()
+    res$W <- resW
+    res$V <- resV
+    res$E <- resE
+    return(res)
+} # end func
+```
+
+
+# Import data
+```{r}
+filePathData <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis\\Data\\StatCompEcology"
+```
+
+```{r}
+# read data
+myDat <- read.delim(
+    file.path(
+        filePathData, 
+        "modeldata.txt"),
+    header=FALSE)
+colnames(myDat) <- c("X", "Y", "V1", "V2", "V3")
+
+# set color
+myDat$Color <- apply(myDat, 1, function(x){
+    if (x["V1"] == -1){
+        if (x["V2"] == -1){
+            return("grey20")
+        } else {
+            return("#61bbc2") # blue
+        } # end inner ifelse
+    } else {
+        return("#ff6f69") # red
+    } # end outer ifelse
+}) # end apply
+```
+
+Three type of output
+  V1 V2 V3
+1 -1 -1  1
+2 -1  1 -1
+3  1 -1 -1
+
+# Perform Analysis
+testing functions
+```{r}
+# extract an observation
+idx <- 1
+tmp <- myDat[idx,]
+
+# input
+x <- as.numeric(tmp[,1:2])
+X <- as.matrix(x)
+# output    
+d <- as.numeric(tmp[,3:5])
+D <- as.matrix(d)
+
+# dimension
+N1 = nrow(X)
+N2 = 5
+N3 = nrow(D)
+
+# initiation
+X <- rbind(1,X) # add bias term
+W <- matrix(1,nrow=N3,  ncol=N2+1)
+V <- matrix(1,nrow=N2,ncol=N1+1)
+
+# Forward
+resF <- Forward(X,W,V)
+#U = V %*% X
+#H = Sig(U)
+#H = rbind(1,H) # add bias term
+#S = W %*% H
+#Y = Sig(S)
+
+# Backward
+resB <- Backward(X,D,W,V,learnRate=learnRate)
+W <- resB[["W"]]
+V <- resB[["V"]]
+
+
+dW =  dEW(Y,D,S,U) # Outer Layer
+dV = dEV(D,Y,X,U,S,W) # Hidden Layer
+
+E = D-Y
+res = (E * dSig(S)) %*% t(H)
+
+t(W) %*% (E * dSig(S))
+* dSig(U) %*% t(X)
+dim(E)
+dim(S)
+resW <- list()
+resV <- list()
+resE <- list()
+```
+
+```{r}
+idx <- 1
+#for (idx in seq_len(myDat)){
+    tmp <- myDat[idx,]
+    x <- as.numeric(tmp[,1:2])
+    X <- as.matrix(x)
+    
+    d <- as.numeric(tmp[,3:5])
+    D <- as.matrix(d)
+    
+    
+#}
+```

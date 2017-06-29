@@ -1,0 +1,59 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年6月19日"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+
+```{r}
+filePathData <- "C:\\Users\\clint\\Documents\\GitHub\\BlogDataAnalysis\\Data\\StatCompEcology"
+```
+
+```{r}
+myDat <- read.delim(
+    file.path(
+        filePathData, 
+        "modeldata.txt"),
+    header=FALSE)
+colnames(myDat) <- c("X", "Y", "V1", "V2", "V3")
+```
+
+# set the color and plot
+  V1 V2 V3
+1 -1 -1  1
+2 -1  1 -1
+3  1 -1 -1
+
+set color
+```{r}
+tmp <- myDat 
+tmp$Color <- apply(tmp, 1, function(x){
+    if (x["V1"] == -1){
+        if (x["V2"] == -1){
+            return("grey20")
+        } else {
+            return("#61bbc2") # blue
+        } # end inner ifelse
+    } else {
+        return("#ff6f69") # red
+    } # end outer ifelse
+}) # end apply
+```
+
+plot the data points
+```{r}
+gp <- ggplot(myDat, aes(x=X, y=Y))
+gp <- gp +
+    geom_point(color=tmp$Color, size=2) +
+    theme_bw()
+print(gp)
+```
+
+# 

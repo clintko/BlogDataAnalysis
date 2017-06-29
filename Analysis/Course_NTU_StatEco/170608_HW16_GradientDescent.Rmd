@@ -1,0 +1,117 @@
+---
+title: "Untitled"
+author: "Kuei Yueh Ko"
+date: "2017年6月8日"
+output: html_document
+---
+
+# set up functions
+training algorithm
+```{r}
+Train <- function(d, x, w, alpha=0.5){
+    # d: data
+    # x: input value
+    # w: parameters
+    # alpha: learning factor
+    # ===========================
+    x0 = 1
+    x1 = x[1]
+    x2 = x[2]
+    
+    w0 = w[1]
+    w1 = w[2]
+    w2 = w[3]
+    
+    y = w0 * x0 + w1 * x1 + w2 * x2
+    e = d-y
+    
+    w0 = w0 + alpha * x0 * e
+    w1 = w1 + alpha * x1 * e
+    w2 = w2 + alpha * x2 * e
+    
+    # store the result
+    Out <- list()
+    Out$w0 <- w0
+    Out$w1 <- w1
+    Out$w2 <- w2
+    Out$e  <- e
+    return(Out)
+}
+```
+
+Wrapping function that perform gradient descent when looping through the data points
+```{r}
+TrainMethod <- function(data, par, alpha=0.5){
+    # data: X1, X2, Y
+    # initialization
+    record <- list()
+    data   <- as.matrix(data)
+    w      <- par
+    
+    # for each row (point) of data, update the parameter w
+    for (idx in seq_len(nrow(data))){
+        # extract the row
+        x <- data[idx,1:2]
+        d <- data[idx,3]
+        
+        # update parameter
+        res <- Train(d, x, w, alpha=alpha)
+        w <- c(res$w0, res$w1, res$w2)
+        
+        # record the process
+        record$w0 <- c(record$w0, res$w0)
+        record$w1 <- c(record$w1, res$w1)
+        record$w2 <- c(record$w2, res$w2)
+        record$e  <- c(record$e,  res$e)
+    } # end for
+    return(record)
+}
+
+```
+
+# Learn the data
+create an arbitrary dataset
+```{r}
+N <- 1000
+datObs <- data.frame(
+    x1 = runif(N, min=-1,max=1),
+    x2 = runif(N, min=-1,max=1))
+datObs$y <- 3 * datObs$x1 - 2 * datObs$x2
+
+plot(datObs$x1, datObs$y)
+plot(datObs$x2, datObs$y)
+```
+
+generate an initial values for parameters
+```{r}
+initW <- runif(3, min=-0.5,max=0.5)
+```
+
+train the parameters
+```{r}
+res   <- TrainMethod(datObs, initW, alpha=0.01)
+#res   <- TrainMethod(datObs, initW, alpha=0.1)
+#res   <- TrainMethod(datObs, initW, alpha=0.5)
+#res   <- TrainMethod(datObs, initW, alpha=0.8)
+#res   <- TrainMethod(datObs, initW, alpha=1.0)
+#res   <- TrainMethod(datObs, initW, alpha=2.0)
+```
+
+show the final results of training
+```{r}
+cat("Final Results of Parameter Values:\n",
+    "w0:    ", rev(res$w0)[1], "\n",# should be 0
+    "w1:    ",rev(res$w1)[1],  "\n",# should be 3
+    "w2:    ",rev(res$w2)[1],  "\n",# should be -2
+    "Error: ",rev(res$e)[1])  # should be 0
+```
+
+trace the values of each parameters
+```{r}
+plot(res$w0)
+plot(res$w1)
+plot(res$w2)
+plot(res$e)
+```
+
+
